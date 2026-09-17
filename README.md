@@ -18,3 +18,7 @@ P1-MON-01 Lead는 이재환, Support는 이권욱이다. 이하영은 PSA/RBAC/N
 정본(D33/#63)은 monitoring-api의 Prometheus·Alertmanager·Grafana·KSM, monitoring-node의 통제된 node-exporter와 monitor01의 독립 Watchdog이다. Grafana 등 내부 서비스는 ClusterIP와 승인 관리 단말 port-forward로 한정한다. monitor01 Remote Write는 승인된 heartbeat/self/target-health만 허용한다. 전체 업무 metric 복제·보안 예외 확대·미승인 외부 노출을 추가하지 않는다.
 
 공통 VM/계정/Ansible inventory, Squid egress role은 infra-ansible에 유지한다. 클러스터 bootstrap/Calico/Host Firewall·공통 보안 정책은 infra-kubernetes, CA lifecycle은 infra-pki, 실제 증적은 fds-project-evidence에 둔다. 이관된 스크립트를 실제 클러스터에서 실행하지 않았다.
+
+## 정본에 따른 운영 결정
+
+[운영 정책](docs/POLICY.md)과 [정본 대응·책임 경계](docs/CANONICAL_POLICY.md)를 적용한다. Private/main을 유지하고, 이번 소스 이관은 로컬 검증 증적과 독립 검토 후 수동 병합으로 판단한다. Actions 활성화는 이관의 새 필수 AC가 아니며 CI 미실행은 NOT RUN으로 기록한다. 중앙 Delivery는 기존 infra-cicd 전용 Runner 경계를 유지한다.
