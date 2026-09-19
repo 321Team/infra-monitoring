@@ -2,10 +2,11 @@
 
 Phase 1~2 monitoring/observability source, Kubernetes 내부 관측 Stack과 monitor01 외부 Watchdog 구성을 관리한다.
 
-**상태: 이미 병합된 E-K3S 참고 소스의 이관 PR. E-CANON 배포 가능한 구성은 아직 편입하지 않았다.**
+**상태: 병합된 E-K3S 참고 소스와 monitor01 TLS/receiver 구성 후보를 관리한다. monitor01 후보는 설정 생성·검토 단계이며 E-CANON 운영 배포 완료가 아니다.**
 
 | 경로 | 역할 |
 |---|---|
+| `monitor01/` | TLS proxy·localhost receiver·heartbeat-only 송신 구성 후보와 입력 검증기. 설치·서비스 변경 없음 |
 | `references/e-k3s/kubernetes/monitoring/` | 기존 Prometheus/Alertmanager/Grafana/규칙/대시보드 등 |
 | `references/e-k3s/kubernetes/d-sec-01/` | 기존 exporter·KSM RBAC 참고본 |
 | `references/e-k3s/scripts/demo/` | S7a/S7b/S8 시연 코드. 일부는 scale/apply를 수행하므로 자동 실행 금지 |
