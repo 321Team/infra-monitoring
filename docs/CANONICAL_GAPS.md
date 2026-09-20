@@ -9,7 +9,7 @@
 | kubelet insecure_skip_verify | 승인 trust/SAN 경로와 TLS 긍정·부정 시험; 우회 금지 | #17 / #19 |
 | monitoring-node baseline PSA 원본 | D33 통제 예외·privileged container 금지, read-only host 접근·9100 제한 | #63 / #19 |
 | Grafana default password 원본 | Secret 참조와 승인 자격증명 주입, anonymous/signup 금지 | #17 / #19 |
-| monitor01 구축 소스 없음 | 독립 Watchdog, TLS proxy/제한 receiver, heartbeat=1 및 5분 단절 검증 | #17 / #63 / #64 |
+| monitor01 TLS/receiver 설정 생성 후보 추가, 운영 적용 미완료 | `monitor01/README.md`에 따른 실제 입력·native parser·서비스 통합·독립 Watchdog/Blackbox·heartbeat=1 및 5분 단절/복구 검증 | #17 / #63 / #64 |
 | E-K3S 시연 결과 | 정본의 Target/Alert/PVC/보안/장애·복구 Runtime 재검증 | #17 |
 | 외부 알림 새 경로 미편입 | #74 서비스 인수·source 실측 및 #75 정책 승인 후 적용 | #74/#75 / k8s PR #12 |
 

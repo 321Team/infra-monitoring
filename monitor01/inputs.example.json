@@ -1,0 +1,13 @@
+{
+  "schema": "fds.monitor01-tls-candidate.v1",
+  "receiver_port": null,
+  "source_ipv4": [],
+  "leaf_file": "/home/server01_monitor/monitor01.crt",
+  "key_file": "/etc/fds/pki/monitor01/request/monitor01.key",
+  "root_file_on_sender": null,
+  "nginx_password_file": null,
+  "sender_username": null,
+  "sender_password_file": null,
+  "receiver_config_dir": null,
+  "receiver_data_dir": null
+}
