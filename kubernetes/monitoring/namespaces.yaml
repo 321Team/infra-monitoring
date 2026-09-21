@@ -1,0 +1,30 @@
+# CANONICAL_GAPS.md(#63/#19): "monitoring-node baseline PSA 원본 → D33 통제 예외·privileged
+# container 금지, read-only host 접근·9100 제한". 어떤 매니페스트도 이 두 namespace 오브젝트
+# 자체를 만들지 않고 있었다 — GitHub #17에서 GWONUK이 확인한 "namespace NotFound"의 원인일 수 있다.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring-api
+  labels:
+    # Prometheus/Alertmanager/Grafana/kube-state-metrics 전부 runAsNonRoot·drop ALL·
+    # allowPrivilegeEscalation:false·seccomp RuntimeDefault 이미 충족 — restricted로 강제해도
+    # 통과한다(NOT VERIFIED: 실제 admission 통과는 클러스터에서 apply 후 확인 필요).
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring-node
+  labels:
+    # GWONUK 리뷰 B4(PR #4) 대응: D33 결정 4가 이미 이 트레이드오프를 수용한 상태였음
+    # (enforce=privileged로 host 필드 허용 + 컨테이너 자체는 privileged:false로 방어).
+    # 이전 커밋의 "네이티브 PSA로 동시 표현 불가라 라벨 생략" 판단은 D33 미적용이었으므로 정정.
+    # enforce=privileged가 이 namespace의 컨테이너에 privileged:true를 "허용"하는 건 맞지만,
+    # 실제로 쓰지 않는다는 보장은 namespace 라벨이 아니라 node-exporter.yaml 컨테이너의
+    # securityContext(privileged:false 명시, seccompProfile)로 건다 — 아래 node-exporter.yaml
+    # 수정 참조.
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

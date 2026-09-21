@@ -1,0 +1,183 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring-api
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+    rule_files:
+      - /etc/prometheus/rules/*.yml       # prometheus-alert-rules CM (core)
+      - /etc/prometheus/rules-p0/*.yml    # prometheus-p0-test-alert CM (S7b)
+      - /etc/prometheus/rules-opt/*.yml   # prometheus-alert-rules-optional CM (E-CANON 전용, optional)
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: ['alertmanager.monitoring-api.svc.cluster.local:9093']
+    scrape_configs:
+      # transaction-api / fds-engine : 파드 단위(headless Service + dns_sd, headless-services.yaml)
+      # 스크레이프로 전환 완료(2026-09-21, E-CANON). replica 3 라운드로빈에 의한 카운터 리셋
+      # 오인(increase()/rate() 영구 부풀음)을 피한다 — E-K3S 에서는 pod→비Service 경로가
+      # "No route to host" 로 실패해 이 방식을 못 썼지만(ClusterIP로 대체), E-CANON 다중 노드에서는
+      # Calico가 pod IP 직결을 허용하므로 정석 방식 사용(미검증 가정 — 실측 전 up{job=...} 확인 필요).
+      # 포트 9091/9090 = dedicated-metrics-listener 전용 metrics 포트(transaction-api/run.py,
+      # fds-engine/run.py 확인, supreme33-kr/fds-msa#5). main app 포트(8000/8001)와 다르다.
+      - job_name: 'transaction-api'
+        dns_sd_configs:
+          - names: ['transaction-api-metrics.fds.svc.cluster.local']
+            type: A
+            port: 9091
+      - job_name: 'fds-engine'
+        dns_sd_configs:
+          - names: ['fds-engine-metrics.fds.svc.cluster.local']
+            type: A
+            port: 9090
+
+      - job_name: 'node-exporter'
+        static_configs:
+          # GWONUK 리뷰 B3(PR #4) 대응: E-K3S placeholder(.50)를 실제 Worker 3대로 교체.
+          # node-exporter DaemonSet에 Control Plane taint toleration이 없으므로(node-exporter.yaml
+          # 확인) kubeadm 계열 기본 동작상 CP 3대(.102~.104)에는 스케줄되지 않고 Worker에만 뜬다.
+          # ⚠️ NOT VERIFIED: 이 스케줄 가정 자체는 정본 클러스터에서 실측 전이다 — 실측 후 다르면
+          # (예: CP에도 toleration이 있다면) 여기에 CP IP도 추가해야 한다.
+          - targets:
+              - '10.1.93.105:9100'   # k8s-worker01
+              - '10.1.93.107:9100'   # k8s-worker02
+              - '10.1.93.108:9100'   # k8s-worker03
+        # 위치 모순 해소(2026-09-21, monitor01/README.md 대조): 이 Prometheus(monitoring-api ns,
+        # in-cluster)가 sender다. monitor01은 별도 독립 Watchdog/receiver(heartbeat-only remote_write
+        # 수신)일 뿐, node-exporter/kubelet을 스크레이프하는 Prometheus 본체가 아니다 — 이전 주석의
+        # "Prometheus가 monitor01 외부 VM에 위치" 전제는 틀렸으므로 제거함.
+      - job_name: 'kube-state-metrics'
+        static_configs:
+          - targets: ['kube-state-metrics.monitoring-api.svc.cluster.local:8080']
+        # ksm 는 replica 1 → ClusterIP 스크레이프로도 라운드로빈 문제 없음.
+
+      # --- A4 : kubelet(10250) scrape 타깃 ---
+      # RBAC: prometheus-rbac.yaml (ServiceAccount prometheus + ClusterRole nodes/metrics).
+      # 네트워크: allow-prometheus-egress-kubelet.yaml (monitoring-api ns egress → 6-node:10250).
+      #
+      # 아래 static_configs 는 E-CANON(정본 6-node) 값으로 이미 갱신됨(2026-09-21).
+      # E-K3S(edge01 단일 노드) 재적용 시에는 KubeletScrapeDownK3s(info) known-issue 로
+      # 되돌리고 S8/TargetDown 대상에서 제외해야 한다 — 이 파일은 E-CANON 전용으로 유지.
+      # CANONICAL_GAPS.md(#17/#19): "kubelet insecure_skip_verify → 승인 trust/SAN 경로와
+      # TLS 긍정·부정 시험; 우회 금지". ca_file은 kubeadm 계열 클러스터에서 kubelet serving
+      # 인증서가 클러스터 CA로 서명되는 표준 패턴을 전제한 값이며(모든 Pod에 자동 마운트되는
+      # ServiceAccount CA), 이 클러스터의 실제 kubelet 서빙 인증서 체인으로 아직 검증 안 됨
+      # (NOT VERIFIED). 적용 후 TLS 긍정(정상 연결) + 부정(다른 CA·만료 인증서 거부) 시험 필요 —
+      # 실패하면 insecure_skip_verify로 되돌리지 말고 실제 kubelet 인증서 체인을 재확인할 것.
+      - job_name: 'kubelet'
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        static_configs:
+          # 6-node IP (FDS_VM_Setup_Guideline_v3.1.1.md). kubelet은 노드 구성요소라 스케줄과
+          # 무관하게 전 노드에서 항상 뜬다. kubernetes_sd_configs(role: node) 전환은 별도 TODO.
+          - targets:
+              - '10.1.93.102:10250'   # k8s-control01
+              - '10.1.93.103:10250'   # k8s-control02
+              - '10.1.93.104:10250'   # k8s-control03
+              - '10.1.93.105:10250'   # k8s-worker01
+              - '10.1.93.107:10250'   # k8s-worker02
+              - '10.1.93.108:10250'   # k8s-worker03
+      - job_name: 'kubelet-cadvisor'
+        scheme: https
+        metrics_path: /metrics/cadvisor
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        static_configs:
+          - targets:
+              - '10.1.93.102:10250'
+              - '10.1.93.103:10250'
+              - '10.1.93.104:10250'
+              - '10.1.93.105:10250'
+              - '10.1.93.107:10250'
+              - '10.1.93.108:10250'
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: monitoring-api
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate            # PVC(RWO) 재부착 충돌 방지 (grafana.yaml A3 동일 사유)
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      # A4: kubelet scrape 인증용. default SA 로는 nodes/metrics 권한이 없다.
+      serviceAccountName: prometheus
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534   # OPEN(#17): Harbor 승인 digest 확정 후 실제 native UID로 재확정 필요
+        fsGroup: 65534
+        fsGroupChangePolicy: OnRootMismatch   # Storage 인계 결정(#17) 수용
+      containers:
+        - name: prometheus
+          image: prom/prometheus:latest
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--web.enable-lifecycle"   # curl -X POST /-/reload 로 룰/설정 재적용
+            - "--storage.tsdb.retention.time=15d"
+            - "--storage.tsdb.retention.size=16GB"   # Storage 인계 결정(#17): PVC 20Gi 중 여유 확보
+          ports:
+            - containerPort: 9090
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+            - name: data
+              mountPath: /prometheus
+            - name: alert-rules
+              mountPath: /etc/prometheus/rules/
+            - name: p0-test-alert
+              mountPath: /etc/prometheus/rules-p0/
+            - name: alert-rules-optional
+              mountPath: /etc/prometheus/rules-opt/
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+        - name: data
+          # Storage 인계 결정(GitHub #17, Lead 이재환 2026-09-21): worker03 host path,
+          # PVC 20Gi(retention 15d, retention.size<=16GB) — pv-monitoring-storage.yaml 참조.
+          # emptyDir → PVC 이전: 재시작 시 TSDB 유실 방지.
+          persistentVolumeClaim:
+            claimName: prometheus-data
+        - name: alert-rules
+          configMap:
+            name: prometheus-alert-rules
+        - name: p0-test-alert
+          configMap:
+            name: prometheus-p0-test-alert
+        - name: alert-rules-optional
+          configMap:
+            name: prometheus-alert-rules-optional
+            optional: true          # 없어도 기동 (E-K3S 는 이 CM 을 적용하지 않음)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: monitoring-api
+spec:
+  selector:
+    app: prometheus
+  ports:
+    - port: 9090
+      targetPort: 9090

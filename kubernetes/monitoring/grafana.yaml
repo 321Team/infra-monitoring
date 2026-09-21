@@ -1,0 +1,115 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: monitoring-api
+data:
+  datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        uid: prometheus            # A3: 대시보드 JSON 이 이 uid 로 참조
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring-api
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate            # A3: PVC(RWO) 재부착 충돌 방지
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      automountServiceAccountToken: false   # GWONUK 리뷰 비차단#3(PR #4): K8s API 호출 안 함
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 472   # OPEN(#17): Harbor 승인 digest 확정 후 실제 native UID로 재확정 필요
+        fsGroup: 472
+        fsGroupChangePolicy: OnRootMismatch   # Storage 인계 결정(#17) 수용
+      containers:
+        - name: grafana
+          image: grafana/grafana:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-admin-credentials
+                  key: admin-user
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-admin-credentials
+                  key: admin-password
+              # Secret은 이 리포에 커밋하지 않는다(CLAUDE.md §6, 원문 금지). 정본 배포 전 직접 생성:
+              #   kubectl -n monitoring-api create secret generic grafana-admin-credentials \
+              #     --from-literal=admin-user='<계정명>' --from-literal=admin-password='<비밀번호>'
+            # GWONUK 리뷰 비차단#1(PR #4): CANONICAL_POLICY.md "Anonymous·Sign-up 금지" 명시화.
+            # Grafana 기본값 자체가 이미 비활성이지만 정본 의도를 값으로 고정한다.
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "false"
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/grafana
+            - name: tmp
+              mountPath: /tmp
+            - name: plugins
+              mountPath: /var/lib/grafana/plugins
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources
+            # A3: 대시보드 provisioning (provider 정의 + 대시보드 JSON)
+            - name: dashboards-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboards
+              mountPath: /etc/grafana/dashboards      # PVC(/var/lib/grafana) 하위 중첩 마운트 회피
+      volumes:
+        - name: data
+          # A3: emptyDir → PVC. Pod 재기동/재스케줄에도 대시보드 편집·주석 유지.
+          persistentVolumeClaim:
+            claimName: grafana-data
+        - name: tmp
+          emptyDir: {}
+        - name: plugins
+          emptyDir: {}
+        - name: datasources
+          configMap:
+            name: grafana-datasources
+        - name: dashboards-provider
+          configMap:
+            name: grafana-dashboards-provider
+        - name: dashboards
+          configMap:
+            name: grafana-dashboards
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring-api
+spec:
+  selector:
+    app: grafana
+  ports:
+    - port: 3000
+      targetPort: 3000

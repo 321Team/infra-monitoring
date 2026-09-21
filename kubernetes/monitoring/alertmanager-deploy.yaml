@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: monitoring-api
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate            # PVC(RWO) 재부착 충돌 방지
+  selector:
+    matchLabels:
+      app: alertmanager
+  template:
+    metadata:
+      labels:
+        app: alertmanager
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534   # OPEN(#17): Harbor 승인 digest 확정 후 실제 native UID로 재확정 필요
+        fsGroup: 65534
+        fsGroupChangePolicy: OnRootMismatch   # Storage 인계 결정(#17) 수용
+      containers:
+      - name: alertmanager
+        image: prom/alertmanager:latest
+        args:
+        - --config.file=/etc/alertmanager/alertmanager.yml
+        - --storage.path=/alertmanager
+        ports:
+        - containerPort: 9093
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - name: config
+          mountPath: /etc/alertmanager
+        - name: storage
+          mountPath: /alertmanager
+      volumes:
+      - name: config
+        configMap:
+          name: alertmanager-config
+      - name: storage
+        # Storage 인계 결정(GitHub #17, Lead 이재환 2026-09-21): worker03 host path, PVC 2Gi.
+        # emptyDir → PVC 이전: 재시작 시 silence/notification 상태 유실 방지.
+        persistentVolumeClaim:
+          claimName: alertmanager-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  namespace: monitoring-api
+spec:
+  selector:
+    app: alertmanager
+  ports:
+  - port: 9093
+    targetPort: 9093
