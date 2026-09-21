@@ -1,0 +1,161 @@
+# 정본(E-CANON) namespace 분리 반영: Prometheus/Grafana 는 monitoring-api ns,
+# transaction-api/fds-engine 은 fds ns 에 남는다. Cross-namespace 트래픽이므로
+# namespaceSelector 를 podSelector 와 함께 명시해야 한다(같은 namespace 라고 가정하면
+# NetworkPolicy 는 기본적으로 자기 namespace 안의 pod만 매치한다).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-monitoring-scrape
+  namespace: fds
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: ["transaction-api", "fds-engine"]
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring-api
+          podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: 9091   # transaction-api dedicated metrics
+        - protocol: TCP
+          port: 9090   # fds-engine dedicated metrics
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-egress-scrape
+  namespace: monitoring-api
+spec:
+  podSelector:
+    matchLabels:
+      app: prometheus
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: fds
+          podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: ["transaction-api", "fds-engine"]
+      ports:
+        - protocol: TCP
+          port: 9091   # transaction-api dedicated metrics
+        - protocol: TCP
+          port: 9090   # fds-engine dedicated metrics
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-egress-node-exporter
+  namespace: monitoring-api
+spec:
+  podSelector:
+    matchLabels:
+      app: prometheus
+  policyTypes:
+    - Egress
+  egress:
+    # node-exporter 는 monitoring-node ns 의 DaemonSet 이지만 hostNetwork: true 라
+    # podSelector/namespaceSelector 로 매치되지 않는다 — NetworkPolicy 상 ipBlock 필수.
+    # ⚠️ ASSUMPTION(정본 미검증): FDS_VM_Setup_Guideline_v3.1.1.md 의 6-node IP를 전부
+    # 넣었다. node-exporter DaemonSet에 Control Plane taint toleration이 없으면 CP 3대
+    # (.102~.104)에는 실제로 스케줄되지 않아 이 3개 egress는 그냥 안 쓰인다(과다 허용,
+    # 무해). kubectl get pods -n monitoring-node -o wide 로 실제 스케줄 노드를 확인해
+    # 필요시 좁혀도 된다.
+    - to:
+        - ipBlock:
+            cidr: 10.1.93.102/32   # k8s-control01
+        - ipBlock:
+            cidr: 10.1.93.103/32   # k8s-control02
+        - ipBlock:
+            cidr: 10.1.93.104/32   # k8s-control03
+        - ipBlock:
+            cidr: 10.1.93.105/32   # k8s-worker01
+        - ipBlock:
+            cidr: 10.1.93.107/32   # k8s-worker02
+        - ipBlock:
+            cidr: 10.1.93.108/32   # k8s-worker03 (Storage 인계 결정 대상 노드)
+      ports:
+        - protocol: TCP
+          port: 9100
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-grafana-to-prometheus
+  namespace: monitoring-api
+spec:
+  podSelector:
+    matchLabels:
+      app: grafana
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: 9090
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-grafana-ingress-from-prometheus-ns
+  namespace: monitoring-api
+spec:
+  podSelector:
+    matchLabels:
+      app: prometheus
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: grafana
+      ports:
+        - protocol: TCP
+          port: 9090
+---
+# 티켓 미완 항목(GitHub #17, 09-10 이재환) "monitoring-api / monitoring-node NetworkPolicy 0개
+# — Default Deny 미적용" 대응. 이 두 ns 안의 모든 pod에 대해 명시 허용 없는 트래픽을 차단한다.
+# 위 개별 allow-* 정책들과 함께 적용해야 하며, 이 파일만 단독 적용하면 전부 차단된다.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: monitoring-api
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: monitoring-node
+spec:
+  # ⚠️ NOT VERIFIED: node-exporter는 hostNetwork:true 라 NetworkPolicy 집행이 CNI마다
+  # 다르게 동작한다(호스트 네트워크 네임스페이스 트래픽이라 Calico가 강제하지 않을 수 있음).
+  # 이 정책이 실제로 node-exporter:9100 스크레이프를 막는지 정본 클러스터에서 직접 확인 필요.
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress

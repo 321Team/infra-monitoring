@@ -1,0 +1,31 @@
+# CANONICAL_GAPS.md(#63/#19): "monitoring-node baseline PSA 원본 → D33 통제 예외·privileged
+# container 금지, read-only host 접근·9100 제한". 어떤 매니페스트도 이 두 namespace 오브젝트
+# 자체를 만들지 않고 있었다 — GitHub #17에서 GWONUK이 확인한 "namespace NotFound"의 원인일 수 있다.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring-api
+  labels:
+    # Prometheus/Alertmanager/Grafana/kube-state-metrics 전부 runAsNonRoot·drop ALL·
+    # allowPrivilegeEscalation:false·seccomp RuntimeDefault 이미 충족 — restricted로 강제해도
+    # 통과한다(NOT VERIFIED: 실제 admission 통과는 클러스터에서 apply 후 확인 필요).
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring-node
+  labels: {}
+  # ⚠️ OPEN(D-SEC-01 #7 조율 필요, 임의 결정 안 함): node-exporter는 hostNetwork/hostPID/
+  # hostPath 볼륨을 쓴다. PSA는 이 세 필드를 baseline 단계에서부터 이미 막기 때문에
+  # baseline/restricted 라벨을 걸면 node-exporter가 아예 기동 못 한다. 그렇다고
+  # enforce: privileged 를 걸면 이 namespace 전체가 privileged:true 컨테이너까지 허용하게
+  # 되는데, CANONICAL_POLICY.md가 명시적으로 "node-exporter Namespace 예외를 Container
+  # privileged=true 허용으로 해석하지 않는다"고 금지한 것과 정면으로 충돌한다.
+  # → 네이티브 PSA만으로는 "host 필드는 허용, privileged:true 컨테이너는 차단"을 동시에
+  # 표현할 수 없다(coarse-grained). OPA/Gatekeeper/Kyverno 같은 별도 admission 정책이나
+  # PSA exemption(namespace 단위, AdmissionConfiguration에서 설정 — namespace label이 아님)
+  # 조합이 필요해 보이지만 이건 이하영/이권욱 보안 검토(D-SEC-01 #7) 몫이라 이 PR에서
+  # enforce 라벨을 임의로 채우지 않는다. 라벨 없음 = 클러스터 기본 PSA 정책을 따름.

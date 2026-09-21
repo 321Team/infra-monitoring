@@ -1,0 +1,106 @@
+# Storage 인계 결정(GitHub #17, Lead 이재환 2026-09-21, GWONUK 실측 제안 수용).
+# Provider: worker03(10.1.93.108, hostname k8s-worker03) NVMe, /home XFS 가용 ~163G.
+# 정본 = 단일 designated Worker / static local PV, non-HA Known Limitation(문서화된 제약).
+# host path: /home/fds-local-pv/{prometheus,grafana,alertmanager}
+#
+# 적용 전 필수 확인(이하영과 재검증 — 아직 NOT VERIFIED):
+#   1. worker03에 /home/fds-local-pv/{prometheus,grafana,alertmanager} 디렉터리 실제 생성
+#   2. owner/mode: 각 컨테이너 runAsUser(현재 65534/65534/472, Harbor digest 확정 후 재확정 예정)가
+#      쓰기 가능하도록 chown/chmod (fsGroupChangePolicy: OnRootMismatch 를 쓰더라도 최초 생성 시
+#      root:root 750 이면 초기 마운트가 실패할 수 있음 — 사전에 mkdir -p && chown 필요)
+#   3. SELinux persistent fcontext (worker03 seclabel 확인됨, semanage fcontext 필요할 수 있음)
+#   4. 실제 free space 재확인 (제안 시점 실측: /home 가용 약 163G)
+#
+# PVC 20Gi/5Gi/2Gi 는 CONFIG_DEFAULT_CANDIDATE — 불변값 아님, Runtime 사용률로 조정 가능.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: fds-local-storage
+provisioner: kubernetes.io/no-provisioner   # static PV, 동적 프로비저닝 없음
+volumeBindingMode: WaitForFirstConsumer     # Pod가 실제 스케줄되는 시점까지 바인딩 지연
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: prometheus-data-pv
+spec:
+  capacity:
+    storage: 20Gi
+  accessModes: ["ReadWriteOnce"]
+  persistentVolumeReclaimPolicy: Retain   # 실수로 PVC 삭제해도 TSDB 데이터 보존
+  storageClassName: fds-local-storage
+  local:
+    path: /home/fds-local-pv/prometheus
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: ["k8s-worker03"]
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: grafana-data-pv
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes: ["ReadWriteOnce"]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: fds-local-storage
+  local:
+    path: /home/fds-local-pv/grafana
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: ["k8s-worker03"]
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: alertmanager-data-pv
+spec:
+  capacity:
+    storage: 2Gi
+  accessModes: ["ReadWriteOnce"]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: fds-local-storage
+  local:
+    path: /home/fds-local-pv/alertmanager
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: ["k8s-worker03"]
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-data
+  namespace: monitoring-api
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: fds-local-storage
+  volumeName: prometheus-data-pv   # static PV 1:1 binding 명시 (non-HA, 단일 후보 PV라 selector 대신 직접 지정)
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: alertmanager-data
+  namespace: monitoring-api
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: fds-local-storage
+  volumeName: alertmanager-data-pv
+  resources:
+    requests:
+      storage: 2Gi

@@ -1,0 +1,31 @@
+# A4 보조 — monitoring-api ns 는 default-deny egress 이므로 Prometheus → kubelet(10250) 경로를
+# 명시 허용. kubelet은 노드 구성요소라 taint/스케줄과 무관하게 6-node 전부에서 항상 뜬다
+# (node-exporter의 DaemonSet 스케줄 불확실성과 다름). IP 출처: FDS_VM_Setup_Guideline_v3.1.1.md.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-egress-kubelet
+  namespace: monitoring-api
+spec:
+  podSelector:
+    matchLabels:
+      app: prometheus
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.1.93.102/32   # k8s-control01
+        - ipBlock:
+            cidr: 10.1.93.103/32   # k8s-control02
+        - ipBlock:
+            cidr: 10.1.93.104/32   # k8s-control03
+        - ipBlock:
+            cidr: 10.1.93.105/32   # k8s-worker01
+        - ipBlock:
+            cidr: 10.1.93.107/32   # k8s-worker02
+        - ipBlock:
+            cidr: 10.1.93.108/32   # k8s-worker03
+      ports:
+        - protocol: TCP
+          port: 10250
