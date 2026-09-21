@@ -47,12 +47,16 @@ data:
       # S1 보조(횡이동/비승인 워크로드 흔적). [BL] §11.3 에 NetworkPolicy drop 지표 없음(P1-MON-02).
       # kube_pod_labels{label_app} 은 ksm --metric-labels-allowlist=pods=[app] 필요.
       # 대체(라벨 불가 시): count(kube_pod_info{namespace="fds"}) > 9
+      #
+      # GWONUK 리뷰 비차단#4(PR #4): namespace 분리로 prometheus/grafana/alertmanager는 이제
+      # fds ns가 아니라 monitoring-api ns에 있다 — allowlist에서 제거(fds ns 예상 app은
+      # transaction-api/fds-engine뿐).
       - alert: UnexpectedPodInFdsNs
         expr: |
           count(
             kube_pod_info{namespace="fds"}
             unless on (namespace, pod)
-            kube_pod_labels{namespace="fds", label_app=~"transaction-api|fds-engine|prometheus|grafana|alertmanager"}
+            kube_pod_labels{namespace="fds", label_app=~"transaction-api|fds-engine"}
           ) > 0
         for: 2m
         labels:

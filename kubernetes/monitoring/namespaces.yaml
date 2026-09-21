@@ -17,15 +17,14 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: monitoring-node
-  labels: {}
-  # ⚠️ OPEN(D-SEC-01 #7 조율 필요, 임의 결정 안 함): node-exporter는 hostNetwork/hostPID/
-  # hostPath 볼륨을 쓴다. PSA는 이 세 필드를 baseline 단계에서부터 이미 막기 때문에
-  # baseline/restricted 라벨을 걸면 node-exporter가 아예 기동 못 한다. 그렇다고
-  # enforce: privileged 를 걸면 이 namespace 전체가 privileged:true 컨테이너까지 허용하게
-  # 되는데, CANONICAL_POLICY.md가 명시적으로 "node-exporter Namespace 예외를 Container
-  # privileged=true 허용으로 해석하지 않는다"고 금지한 것과 정면으로 충돌한다.
-  # → 네이티브 PSA만으로는 "host 필드는 허용, privileged:true 컨테이너는 차단"을 동시에
-  # 표현할 수 없다(coarse-grained). OPA/Gatekeeper/Kyverno 같은 별도 admission 정책이나
-  # PSA exemption(namespace 단위, AdmissionConfiguration에서 설정 — namespace label이 아님)
-  # 조합이 필요해 보이지만 이건 이하영/이권욱 보안 검토(D-SEC-01 #7) 몫이라 이 PR에서
-  # enforce 라벨을 임의로 채우지 않는다. 라벨 없음 = 클러스터 기본 PSA 정책을 따름.
+  labels:
+    # GWONUK 리뷰 B4(PR #4) 대응: D33 결정 4가 이미 이 트레이드오프를 수용한 상태였음
+    # (enforce=privileged로 host 필드 허용 + 컨테이너 자체는 privileged:false로 방어).
+    # 이전 커밋의 "네이티브 PSA로 동시 표현 불가라 라벨 생략" 판단은 D33 미적용이었으므로 정정.
+    # enforce=privileged가 이 namespace의 컨테이너에 privileged:true를 "허용"하는 건 맞지만,
+    # 실제로 쓰지 않는다는 보장은 namespace 라벨이 아니라 node-exporter.yaml 컨테이너의
+    # securityContext(privileged:false 명시, seccompProfile)로 건다 — 아래 node-exporter.yaml
+    # 수정 참조.
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

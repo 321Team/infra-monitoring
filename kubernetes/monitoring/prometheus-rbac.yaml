@@ -13,11 +13,13 @@ kind: ClusterRole
 metadata:
   name: prometheus-kubelet-scrape
 rules:
+  # GWONUK 리뷰 비차단#2(PR #4): nodes/stats 제거. kubelet scrape는 /metrics·/metrics/cadvisor
+  # nonResourceURL만 쓰고 stats/summary API(nodes/stats)는 호출하지 않는다 — D34 "nodes/proxy
+  # 금지" 정신에 맞춰 실제 안 쓰는 권한은 부여하지 않는다.
   - apiGroups: [""]
     resources:
       - nodes
       - nodes/metrics
-      - nodes/stats
     verbs: ["get", "list", "watch"]
   - nonResourceURLs: ["/metrics", "/metrics/cadvisor"]
     verbs: ["get"]

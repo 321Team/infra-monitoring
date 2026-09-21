@@ -17,24 +17,26 @@ data:
     - name: fds-core-observability
       rules:
 
-      # ⚠️ OPEN(2026-09-21): prometheus.yaml 의 kubelet/kubelet-cadvisor 타깃은 E-CANON
-      # 6-node 실 IP로 이미 교체됨. node-exporter 타깃은 아직 E-K3S placeholder(.50)로 남아있음.
-      # 아래 두 알림(NodeExporterDown/KubeletScrapeDownK3s)의 "k3s hairpin known-issue" 프레이밍은
-      # E-K3S 기준이다 — E-CANON에서 실제로 hairpin이 재현되는지 NOT VERIFIED(memory:
-      # fds-s7-s8-observability). 실측 후 known_issue 라벨·severity·S8 대상 제외 여부를 재검토할 것.
-      # node-exporter : k3s 단일노드 hairpin 로 상시 DOWN. 실 6노드(.105/.107/.108:9100)에서 정석.
+      # GWONUK 리뷰 B3(PR #4) 대응(2026-09-21): node-exporter 타깃이 실 Worker 3대(prometheus.yaml)로
+      # 교체됨에 따라 "k3s-hairpin known-issue" 프레이밍은 더 이상 사실과 맞지 않아 제거함.
+      # ⚠️ NOT VERIFIED로 대체: DaemonSet이 실제로 이 3대 전부에 스케줄되는지는 정본 클러스터
+      # 실측 전이다(kubectl get pods -n monitoring-node -o wide로 확인). S8/TargetDown에는 아직
+      # 포함하지 않음 — 스케줄 가정이 틀리면 상시 오탐이 될 수 있어 실측 후 편입 여부를 재검토.
       - alert: NodeExporterDown
         expr: up{job="node-exporter"} == 0
         for: 30s
         labels:
           severity: warning
-          known_issue: "k3s-hairpin"
-          kr: "노드 지표 수집 실패 (k3s 단일노드 한계)"
+          not_verified: "e-canon-daemonset-schedule"
+          kr: "노드 지표 수집 실패"
         annotations:
           summary: "node-exporter target is down"
-          description: "edge01 단일 노드 k3s hairpin 로 DOWN. 실 6노드에서는 정석 타깃. S8 대상 아님."
+          description: "{{ $labels.instance }} 스크레이프 실패. E-CANON Worker 3대(.105/.107/.108) 대상 — DaemonSet 실제 스케줄 여부 NOT VERIFIED. S8/TargetDown 대상 아님(오탐 위험으로 별도 분리)."
 
-      # kubelet(10250) : pod→노드 자기 IP 도달 제약(No route to host). node-exporter 와 동일 원인.
+      # kubelet(10250) : E-K3S에서는 pod→노드 자기 IP 도달 제약(No route to host)이 원인이었다.
+      # E-CANON에서는 kubelet 타깃도 실 6-node IP로 교체됨(prometheus.yaml) — 아래 known_issue
+      # 라벨/설명은 여전히 E-K3S 기준으로 남아있음(OPEN, 위 주석 참조. NodeExporterDown과 달리
+      # 이번 PR 리뷰에서 차단 대상으로 지적되지 않아 이번 수정 범위에는 포함하지 않음).
       - alert: KubeletScrapeDownK3s
         expr: up{job=~"kubelet|kubelet-cadvisor"} == 0
         for: 2m

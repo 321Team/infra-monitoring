@@ -146,6 +146,31 @@ spec:
     - Ingress
     - Egress
 ---
+# GWONUK 리뷰 B2(PR #4) 대응: default-deny-all이 DNS(kube-system CoreDNS 53)까지 막아
+# dns_sd_configs(transaction-api/fds-engine 파드 단위 스크레이프)와 Grafana의
+# `http://prometheus:9090` 이름 해석이 전부 실패한다. monitoring-api 전체 pod에 DNS egress
+# 허용. 네임스페이스 셀렉터만 쓰고 podSelector(k8s-app=kube-dns 등)를 안 건 이유: CoreDNS
+# pod 라벨은 배포 방식(kubeadm/kops/managed)마다 달라 잘못 좁히면 또 막힐 위험이 큼.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-monitoring-egress-dns
+  namespace: monitoring-api
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

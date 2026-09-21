@@ -30,8 +30,14 @@ spec:
               mountPath: /host
               readOnly: true
           securityContext:
+            # GWONUK 리뷰 B4(PR #4): namespace가 enforce=privileged라 privileged:true도
+            # admission을 통과하지만, 실제로 privileged 권한이 필요 없으므로 명시적으로 false 고정
+            # + seccompProfile 추가(CANONICAL_POLICY.md "privileged=true 허용으로 해석하지 않는다").
+            privileged: false
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
             capabilities:
               drop: ["ALL"]
           readinessProbe:

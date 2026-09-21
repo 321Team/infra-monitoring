@@ -36,15 +36,19 @@ data:
 
       - job_name: 'node-exporter'
         static_configs:
-          - targets: ['10.1.93.50:9100']
+          # GWONUK 리뷰 B3(PR #4) 대응: E-K3S placeholder(.50)를 실제 Worker 3대로 교체.
+          # node-exporter DaemonSet에 Control Plane taint toleration이 없으므로(node-exporter.yaml
+          # 확인) kubeadm 계열 기본 동작상 CP 3대(.102~.104)에는 스케줄되지 않고 Worker에만 뜬다.
+          # ⚠️ NOT VERIFIED: 이 스케줄 가정 자체는 정본 클러스터에서 실측 전이다 — 실측 후 다르면
+          # (예: CP에도 toleration이 있다면) 여기에 CP IP도 추가해야 한다.
+          - targets:
+              - '10.1.93.105:9100'   # k8s-worker01
+              - '10.1.93.107:9100'   # k8s-worker02
+              - '10.1.93.108:9100'   # k8s-worker03
         # 위치 모순 해소(2026-09-21, monitor01/README.md 대조): 이 Prometheus(monitoring-api ns,
         # in-cluster)가 sender다. monitor01은 별도 독립 Watchdog/receiver(heartbeat-only remote_write
         # 수신)일 뿐, node-exporter/kubelet을 스크레이프하는 Prometheus 본체가 아니다 — 이전 주석의
         # "Prometheus가 monitor01 외부 VM에 위치" 전제는 틀렸으므로 제거함.
-        # ⚠️ 여전히 OPEN: target IP는 E-K3S placeholder(.50) 그대로다. node-exporter DaemonSet이
-        # CP taint 때문에 어느 노드에 실제로 스케줄되는지 미확인 상태에서 IP를 채우면 거짓
-        # TargetDown/NodeExporterDown을 만들 수 있어 실측 전까지 의도적으로 비워둔다
-        # (kubectl get pods -n monitoring-node -o wide 로 확인 후 채울 것).
       - job_name: 'kube-state-metrics'
         static_configs:
           - targets: ['kube-state-metrics.monitoring-api.svc.cluster.local:8080']
