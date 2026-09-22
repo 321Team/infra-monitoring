@@ -1,0 +1,39 @@
+# CR-P1-MON-01-02 (fds-project-baseline#75) 대응.
+# CANONICAL_GAPS.md 항목 "외부 알림 새 경로 미편입"에 대한 구현.
+#
+# Alertmanager(monitoring-api ns) -> egress-proxy01(10.1.93.56:3128) 만 허용.
+# Squid가 discord.com-only allowlist를 하위에서 강제한다 (infra-ansible
+# roles/egress_proxy).
+#
+# monitoring-api ns에는 이미 다음이 존재하므로 이 파일은 그것들과 함께
+# 적용된다(중복 불필요):
+#   - default-deny-all (kubernetes/monitoring/networkpolicy.yaml)
+#   - allow-monitoring-egress-dns (동일 파일, namespaceSelector=kube-system, 53번 포트)
+#
+# STATUS: 어떤 클러스터에도 아직 적용 금지.
+#   fds-project-baseline#75: "#74 실제 client source 실측 + 서비스 인수
+#   전까지 운영 적용 HOLD." PR은 Draft로 유지하고 merge하지 않는다.
+#
+# 확인 필요 (재환님):
+#   - Alertmanager가 프록시를 IP(10.1.93.56)로 직접 쓰는지, hostname으로
+#     접근하는지 — alertmanager.yml의 실제 webhook/proxy 설정 방식에 따라
+#     ipBlock 값이 달라질 수 있음.
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-alertmanager-egress-proxy
+  namespace: monitoring-api
+spec:
+  podSelector:
+    matchLabels:
+      app: alertmanager
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.1.93.56/32   # egress-proxy01 (DEC-P1-EGRESS-01 / fds-project-baseline#78)
+      ports:
+        - protocol: TCP
+          port: 3128              # cr_mon_proxy_port (infra-ansible roles/egress_proxy/defaults/main.yml)
