@@ -1,12 +1,12 @@
 # 정본(E-CANON) namespace 분리 반영: Prometheus/Grafana 는 monitoring-api ns,
-# transaction-api/fds-engine 은 fds ns 에 남는다. Cross-namespace 트래픽이므로
+# transaction-api/fds-engine 은 fds-app ns 에 위치한다. Cross-namespace 트래픽이므로
 # namespaceSelector 를 podSelector 와 함께 명시해야 한다(같은 namespace 라고 가정하면
 # NetworkPolicy 는 기본적으로 자기 namespace 안의 pod만 매치한다).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-monitoring-scrape
-  namespace: fds
+  namespace: fds-app
 spec:
   podSelector:
     matchExpressions:
@@ -44,7 +44,7 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: fds
+              kubernetes.io/metadata.name: fds-app
           podSelector:
             matchExpressions:
               - key: app

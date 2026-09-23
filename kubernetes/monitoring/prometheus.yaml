@@ -25,12 +25,12 @@ data:
       # fds-engine/run.py 확인, supreme33-kr/fds-msa#5). main app 포트(8000/8001)와 다르다.
       - job_name: 'transaction-api'
         dns_sd_configs:
-          - names: ['transaction-api-metrics.fds.svc.cluster.local']
+          - names: ['transaction-api-metrics.fds-app.svc.cluster.local']
             type: A
             port: 9091
       - job_name: 'fds-engine'
         dns_sd_configs:
-          - names: ['fds-engine-metrics.fds.svc.cluster.local']
+          - names: ['fds-engine-metrics.fds-app.svc.cluster.local']
             type: A
             port: 9090
 
