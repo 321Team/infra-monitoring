@@ -1,0 +1,998 @@
+{
+  "source_commit": "a885cef2358682214095590baf69b77062978778",
+  "source_files": [
+    {
+      "path": "kubernetes/monitoring/alert-rules-optional.yaml",
+      "git_blob_sha": "7d7da76b28d295222b658f7da2ff1d86c061474e"
+    },
+    {
+      "path": "kubernetes/monitoring/alert-rules.yaml",
+      "git_blob_sha": "9af9b761452bf3b17777c4b9226d97ee02db73ef"
+    },
+    {
+      "path": "kubernetes/monitoring/alertmanager-config.yaml",
+      "git_blob_sha": "4dee064da7bee1b3c3c5e80d017ac708016265b4"
+    },
+    {
+      "path": "kubernetes/monitoring/alertmanager-deploy.yaml",
+      "git_blob_sha": "2b7ca65c272c32013511258c6c125437f624f196"
+    },
+    {
+      "path": "kubernetes/monitoring/allow-prometheus-egress-alertmanager.yaml",
+      "git_blob_sha": "ddc93b93d86dd928757b3b01f50a1a50653d0dab"
+    },
+    {
+      "path": "kubernetes/monitoring/allow-prometheus-egress-kube-state-metrics.yaml",
+      "git_blob_sha": "f70b0f505ec98e0c02821cfcb3083a352c934957"
+    },
+    {
+      "path": "kubernetes/monitoring/allow-prometheus-egress-kubelet.yaml",
+      "git_blob_sha": "1b35aa075013ccf826d61335ab66ad8412224267"
+    },
+    {
+      "path": "kubernetes/monitoring/allow-prometheus-ingress-to-alertmanager.yaml",
+      "git_blob_sha": "14a9ab1f0b70575cdb23b48194a2664f030d9f35"
+    },
+    {
+      "path": "kubernetes/monitoring/grafana-dashboards.yaml",
+      "git_blob_sha": "e452a66aeb6df1f19cb1e91346d4afcc3caf1ed1"
+    },
+    {
+      "path": "kubernetes/monitoring/grafana.yaml",
+      "git_blob_sha": "272bbd5bfc5ef650dd0d78b4900ec6053923bcfe"
+    },
+    {
+      "path": "kubernetes/monitoring/headless-services.yaml",
+      "git_blob_sha": "0acb23eaf7f8bd51cc9bbf68a2bcdb05a032066c"
+    },
+    {
+      "path": "kubernetes/monitoring/kube-state-metrics.yaml",
+      "git_blob_sha": "3fd96ddeec13dfa59600fa07a8f9b5c270599c3a"
+    },
+    {
+      "path": "kubernetes/monitoring/namespaces.yaml",
+      "git_blob_sha": "772780350eb5b4b664c0d0cae371adff38138fb3"
+    },
+    {
+      "path": "kubernetes/monitoring/networkpolicy.yaml",
+      "git_blob_sha": "67f6eda16ffad4dbfa7ea743f78e2968c7a0a434"
+    },
+    {
+      "path": "kubernetes/monitoring/node-exporter.yaml",
+      "git_blob_sha": "4245b4b7730a6ba6bddb7b0cbcc2e4d508202a77"
+    },
+    {
+      "path": "kubernetes/monitoring/p0-test-alert.yaml",
+      "git_blob_sha": "c8f22616f0915cd9a1f788a75eccf5f1e69dcf7c"
+    },
+    {
+      "path": "kubernetes/monitoring/prometheus-rbac.yaml",
+      "git_blob_sha": "5531aff67ec459f77f866ec2e89b6b4fe3bc47fd"
+    },
+    {
+      "path": "kubernetes/monitoring/prometheus.yaml",
+      "git_blob_sha": "21c103ee3adb3c022542ff73903b24aff2655679"
+    },
+    {
+      "path": "kubernetes/monitoring/pv-monitoring-storage.yaml",
+      "git_blob_sha": "711b7d32a29f149ad9cb25d6f24d5418000504f7"
+    },
+    {
+      "path": "kubernetes/monitoring/rbac-kube-state-metrics.yaml",
+      "git_blob_sha": "07537e57a7ee51f6a779d2d5b1f931c8bda01022"
+    }
+  ],
+  "objects": [
+    {
+      "kind": "ConfigMap",
+      "namespace": "monitoring-api",
+      "name": "prometheus-alert-rules-optional",
+      "data_sha256": {
+        "alert-rules-optional.yml": "3d2a0baabd2ecddac0d67585bf8910430fc445266b70c2935d4941a4b7739e78"
+      },
+      "binary_keys": []
+    },
+    {
+      "kind": "ConfigMap",
+      "namespace": "monitoring-api",
+      "name": "prometheus-alert-rules",
+      "data_sha256": {
+        "alert-rules.yml": "fc7906f27cec86c41089a82667c38b106a1df79ea9ae0f12ce62778f613fc89e"
+      },
+      "binary_keys": []
+    },
+    {
+      "kind": "ConfigMap",
+      "namespace": "monitoring-api",
+      "name": "alertmanager-config",
+      "data_sha256": {
+        "alertmanager.yml": "aceb1dcbbc5c67452ed9837f1f6557a082752ac59f354fb1105cd2fce63089d8"
+      },
+      "binary_keys": []
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "monitoring-api",
+      "name": "alertmanager",
+      "selected_spec": {
+        "serviceAccountName": "default",
+        "hostNetwork": false,
+        "imagePullSecrets": [],
+        "containers": [
+          {
+            "name": "alertmanager",
+            "image": "prom/alertmanager:latest",
+            "class": "containers",
+            "mounts": [
+              {
+                "name": "config",
+                "mountPath": "/etc/alertmanager"
+              },
+              {
+                "name": "storage",
+                "mountPath": "/alertmanager"
+              }
+            ],
+            "env_secret_refs": [],
+            "env_from_secret_refs": []
+          }
+        ],
+        "volumes": [
+          {
+            "name": "config",
+            "types": [
+              "configMap"
+            ],
+            "configMap": {
+              "name": "alertmanager-config"
+            }
+          },
+          {
+            "name": "storage",
+            "types": [
+              "persistentVolumeClaim"
+            ],
+            "persistentVolumeClaim": {
+              "claimName": "alertmanager-data"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "Service",
+      "namespace": "monitoring-api",
+      "name": "alertmanager",
+      "selected_spec": {
+        "type": "ClusterIP",
+        "selector": {
+          "app": "alertmanager"
+        },
+        "ports": [
+          {
+            "port": 9093,
+            "targetPort": 9093,
+            "protocol": "TCP"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "NetworkPolicy",
+      "namespace": "monitoring-api",
+      "name": "allow-prometheus-egress-alertmanager",
+      "selected_spec": {
+        "podSelector": {
+          "matchLabels": {
+            "app": "prometheus"
+          }
+        },
+        "policyTypes": [
+          "Egress"
+        ],
+        "egress": [
+          {
+            "to": [
+              {
+                "podSelector": {
+                  "matchLabels": {
+                    "app": "alertmanager"
+                  }
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 9093
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "kind": "NetworkPolicy",
+      "namespace": "monitoring-api",
+      "name": "allow-prometheus-egress-kube-state-metrics",
+      "selected_spec": {
+        "podSelector": {
+          "matchLabels": {
+            "app": "prometheus"
+          }
+        },
+        "policyTypes": [
+          "Egress"
+        ],
+        "egress": [
+          {
+            "to": [
+              {
+                "namespaceSelector": {
+                  "matchLabels": {
+                    "kubernetes.io/metadata.name": "monitoring-api"
+                  }
+                },
+                "podSelector": {
+                  "matchLabels": {
+                    "app": "kube-state-metrics"
+                  }
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 8080
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "kind": "NetworkPolicy",
+      "namespace": "monitoring-api",
+      "name": "allow-prometheus-egress-kubelet",
+      "selected_spec": {
+        "podSelector": {
+          "matchLabels": {
+            "app": "prometheus"
+          }
+        },
+        "policyTypes": [
+          "Egress"
+        ],
+        "egress": [
+          {
+            "to": [
+              {
+                "ipBlock": {
+                  "cidr": "10.1.93.102/32"
+                }
+              },
+              {
+                "ipBlock": {
+                  "cidr": "10.1.93.103/32"
+                }
+              },
+              {
+                "ipBlock": {
+                  "cidr": "10.1.93.104/32"
+                }
+              },
+              {
+                "ipBlock": {
+                  "cidr": "10.1.93.105/32"
+                }
+              },
+              {
+                "ipBlock": {
+                  "cidr": "10.1.93.107/32"
+                }
+              },
+              {
+                "ipBlock": {
+                  "cidr": "10.1.93.108/32"
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 10250
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "kind": "NetworkPolicy",
+      "namespace": "monitoring-api",
+      "name": "allow-prometheus-ingress-to-alertmanager",
+      "selected_spec": {
+        "podSelector": {
+          "matchLabels": {
+            "app": "alertmanager"
+          }
+        },
+        "policyTypes": [
+          "Ingress"
+        ],
+        "ingress": [
+          {
+            "from": [
+              {
+                "podSelector": {
+                  "matchLabels": {
+                    "app": "prometheus"
+                  }
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 9093
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "kind": "PersistentVolumeClaim",
+      "namespace": "monitoring-api",
+      "name": "grafana-data",
+      "selected_spec": {
+        "storageClassName": "fds-local-storage",
+        "accessModes": [
+          "ReadWriteOnce"
+        ],
+        "resources": {
+          "requests": {
+            "storage": "5Gi"
+          }
+        },
+        "volumeName": "grafana-data-pv"
+      }
+    },
+    {
+      "kind": "ConfigMap",
+      "namespace": "monitoring-api",
+      "name": "grafana-dashboards-provider",
+      "data_sha256": {
+        "provider.yaml": "e23193cc5981ba530ce35aaa1a1deb1c4bc4ca27df43347e1ebd6beccac681ee"
+      },
+      "binary_keys": []
+    },
+    {
+      "kind": "ConfigMap",
+      "namespace": "monitoring-api",
+      "name": "grafana-dashboards",
+      "data_sha256": {
+        "application-fds.json": "acb71dc6fccc8fcaa42537e12c530d70376587c4ac01c874eb121f0b1abb4e9c",
+        "fds-overview.json": "a0c6d363c086a026cda8ec7a1ad08cc4ebd9f2e55ac5934f450f119830779ef4",
+        "kubernetes-workload.json": "ae6d9e9403b011c74cd498406a9c630650d830c0f21a00f8669caf08264a2173",
+        "node-monitoring-health.json": "d762bac80fe377d2d967e3a36bcd11f4d6c3413c7d9aa661ffc0a4faeafedfd8"
+      },
+      "binary_keys": []
+    },
+    {
+      "kind": "ConfigMap",
+      "namespace": "monitoring-api",
+      "name": "grafana-datasources",
+      "data_sha256": {
+        "datasource.yaml": "374bc31634fa7e713f61ac936a55a3712c25d9a9858044ccb617dc1d52d15365"
+      },
+      "binary_keys": []
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "monitoring-api",
+      "name": "grafana",
+      "selected_spec": {
+        "serviceAccountName": "default",
+        "hostNetwork": false,
+        "imagePullSecrets": [],
+        "containers": [
+          {
+            "name": "grafana",
+            "image": "grafana/grafana:latest",
+            "class": "containers",
+            "mounts": [
+              {
+                "name": "data",
+                "mountPath": "/var/lib/grafana"
+              },
+              {
+                "name": "tmp",
+                "mountPath": "/tmp"
+              },
+              {
+                "name": "plugins",
+                "mountPath": "/var/lib/grafana/plugins"
+              },
+              {
+                "name": "datasources",
+                "mountPath": "/etc/grafana/provisioning/datasources"
+              },
+              {
+                "name": "dashboards-provider",
+                "mountPath": "/etc/grafana/provisioning/dashboards"
+              },
+              {
+                "name": "dashboards",
+                "mountPath": "/etc/grafana/dashboards"
+              }
+            ],
+            "env_secret_refs": [
+              {
+                "name": "grafana-admin-credentials",
+                "key": "admin-user"
+              },
+              {
+                "name": "grafana-admin-credentials",
+                "key": "admin-password"
+              }
+            ],
+            "env_from_secret_refs": []
+          }
+        ],
+        "volumes": [
+          {
+            "name": "data",
+            "types": [
+              "persistentVolumeClaim"
+            ],
+            "persistentVolumeClaim": {
+              "claimName": "grafana-data"
+            }
+          },
+          {
+            "name": "tmp",
+            "types": [
+              "emptyDir"
+            ]
+          },
+          {
+            "name": "plugins",
+            "types": [
+              "emptyDir"
+            ]
+          },
+          {
+            "name": "datasources",
+            "types": [
+              "configMap"
+            ],
+            "configMap": {
+              "name": "grafana-datasources"
+            }
+          },
+          {
+            "name": "dashboards-provider",
+            "types": [
+              "configMap"
+            ],
+            "configMap": {
+              "name": "grafana-dashboards-provider"
+            }
+          },
+          {
+            "name": "dashboards",
+            "types": [
+              "configMap"
+            ],
+            "configMap": {
+              "name": "grafana-dashboards"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "Service",
+      "namespace": "monitoring-api",
+      "name": "grafana",
+      "selected_spec": {
+        "type": "ClusterIP",
+        "selector": {
+          "app": "grafana"
+        },
+        "ports": [
+          {
+            "port": 3000,
+            "targetPort": 3000,
+            "protocol": "TCP"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "monitoring-api",
+      "name": "kube-state-metrics",
+      "selected_spec": {
+        "serviceAccountName": "kube-state-metrics-sa",
+        "hostNetwork": false,
+        "imagePullSecrets": [],
+        "containers": [
+          {
+            "name": "kube-state-metrics",
+            "image": "registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.13.0",
+            "class": "containers",
+            "mounts": [],
+            "env_secret_refs": [],
+            "env_from_secret_refs": []
+          }
+        ],
+        "volumes": []
+      }
+    },
+    {
+      "kind": "Service",
+      "namespace": "monitoring-api",
+      "name": "kube-state-metrics",
+      "selected_spec": {
+        "type": "ClusterIP",
+        "selector": {
+          "app": "kube-state-metrics"
+        },
+        "ports": [
+          {
+            "port": 8080,
+            "targetPort": 8080,
+            "protocol": "TCP",
+            "name": "http-metrics"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "NetworkPolicy",
+      "namespace": "monitoring-api",
+      "name": "allow-prometheus-egress-scrape",
+      "selected_spec": {
+        "podSelector": {
+          "matchLabels": {
+            "app": "prometheus"
+          }
+        },
+        "policyTypes": [
+          "Egress"
+        ],
+        "egress": [
+          {
+            "to": [
+              {
+                "namespaceSelector": {
+                  "matchLabels": {
+                    "kubernetes.io/metadata.name": "fds-app"
+                  }
+                },
+                "podSelector": {
+                  "matchExpressions": [
+                    {
+                      "key": "app",
+                      "operator": "In",
+                      "values": [
+                        "transaction-api",
+                        "fds-engine"
+                      ]
+                    }
+                  ]
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 9091
+              },
+              {
+                "protocol": "TCP",
+                "port": 9090
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "kind": "NetworkPolicy",
+      "namespace": "monitoring-api",
+      "name": "allow-prometheus-egress-node-exporter",
+      "selected_spec": {
+        "podSelector": {
+          "matchLabels": {
+            "app": "prometheus"
+          }
+        },
+        "policyTypes": [
+          "Egress"
+        ],
+        "egress": [
+          {
+            "to": [
+              {
+                "ipBlock": {
+                  "cidr": "10.1.93.102/32"
+                }
+              },
+              {
+                "ipBlock": {
+                  "cidr": "10.1.93.103/32"
+                }
+              },
+              {
+                "ipBlock": {
+                  "cidr": "10.1.93.104/32"
+                }
+              },
+              {
+                "ipBlock": {
+                  "cidr": "10.1.93.105/32"
+                }
+              },
+              {
+                "ipBlock": {
+                  "cidr": "10.1.93.107/32"
+                }
+              },
+              {
+                "ipBlock": {
+                  "cidr": "10.1.93.108/32"
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 9100
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "kind": "NetworkPolicy",
+      "namespace": "monitoring-api",
+      "name": "allow-grafana-to-prometheus",
+      "selected_spec": {
+        "podSelector": {
+          "matchLabels": {
+            "app": "grafana"
+          }
+        },
+        "policyTypes": [
+          "Egress"
+        ],
+        "egress": [
+          {
+            "to": [
+              {
+                "podSelector": {
+                  "matchLabels": {
+                    "app": "prometheus"
+                  }
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 9090
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "kind": "NetworkPolicy",
+      "namespace": "monitoring-api",
+      "name": "allow-grafana-ingress-from-prometheus-ns",
+      "selected_spec": {
+        "podSelector": {
+          "matchLabels": {
+            "app": "prometheus"
+          }
+        },
+        "policyTypes": [
+          "Ingress"
+        ],
+        "ingress": [
+          {
+            "from": [
+              {
+                "podSelector": {
+                  "matchLabels": {
+                    "app": "grafana"
+                  }
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 9090
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "kind": "NetworkPolicy",
+      "namespace": "monitoring-api",
+      "name": "default-deny-all",
+      "selected_spec": {
+        "podSelector": {},
+        "policyTypes": [
+          "Ingress",
+          "Egress"
+        ]
+      }
+    },
+    {
+      "kind": "NetworkPolicy",
+      "namespace": "monitoring-api",
+      "name": "allow-monitoring-egress-dns",
+      "selected_spec": {
+        "podSelector": {},
+        "policyTypes": [
+          "Egress"
+        ],
+        "egress": [
+          {
+            "to": [
+              {
+                "namespaceSelector": {
+                  "matchLabels": {
+                    "kubernetes.io/metadata.name": "kube-system"
+                  }
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "UDP",
+                "port": 53
+              },
+              {
+                "protocol": "TCP",
+                "port": 53
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "kind": "NetworkPolicy",
+      "namespace": "monitoring-node",
+      "name": "default-deny-all",
+      "selected_spec": {
+        "podSelector": {},
+        "policyTypes": [
+          "Ingress",
+          "Egress"
+        ]
+      }
+    },
+    {
+      "kind": "DaemonSet",
+      "namespace": "monitoring-node",
+      "name": "node-exporter",
+      "selected_spec": {
+        "serviceAccountName": "node-exporter-sa",
+        "hostNetwork": true,
+        "imagePullSecrets": [],
+        "containers": [
+          {
+            "name": "node-exporter",
+            "image": "prom/node-exporter:latest",
+            "class": "containers",
+            "mounts": [
+              {
+                "name": "rootfs",
+                "mountPath": "/host",
+                "readOnly": true
+              }
+            ],
+            "env_secret_refs": [],
+            "env_from_secret_refs": []
+          }
+        ],
+        "volumes": [
+          {
+            "name": "rootfs",
+            "types": [
+              "hostPath"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "kind": "Service",
+      "namespace": "monitoring-node",
+      "name": "node-exporter",
+      "selected_spec": {
+        "type": "ClusterIP",
+        "selector": {
+          "app": "node-exporter"
+        },
+        "ports": [
+          {
+            "port": 9100,
+            "targetPort": 9100,
+            "protocol": "TCP"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "ConfigMap",
+      "namespace": "monitoring-api",
+      "name": "prometheus-p0-test-alert",
+      "data_sha256": {
+        "p0-test-alert.yml": "c97c60256c4caa64cd9699539eccbb5d60f18907b1c8190cea280e0d7e8fb22c"
+      },
+      "binary_keys": []
+    },
+    {
+      "kind": "ConfigMap",
+      "namespace": "monitoring-api",
+      "name": "prometheus-config",
+      "data_sha256": {
+        "prometheus.yml": "f8c0b237b1cd4b1c0bd8410bb3d10ac9711e7b3f56f9d189b1589d34689eeef4"
+      },
+      "binary_keys": []
+    },
+    {
+      "kind": "Deployment",
+      "namespace": "monitoring-api",
+      "name": "prometheus",
+      "selected_spec": {
+        "serviceAccountName": "prometheus",
+        "hostNetwork": false,
+        "imagePullSecrets": [],
+        "containers": [
+          {
+            "name": "prometheus",
+            "image": "prom/prometheus:latest",
+            "class": "containers",
+            "mounts": [
+              {
+                "name": "config",
+                "mountPath": "/etc/prometheus"
+              },
+              {
+                "name": "data",
+                "mountPath": "/prometheus"
+              },
+              {
+                "name": "alert-rules",
+                "mountPath": "/etc/prometheus/rules/"
+              },
+              {
+                "name": "p0-test-alert",
+                "mountPath": "/etc/prometheus/rules-p0/"
+              },
+              {
+                "name": "alert-rules-optional",
+                "mountPath": "/etc/prometheus/rules-opt/"
+              }
+            ],
+            "env_secret_refs": [],
+            "env_from_secret_refs": []
+          }
+        ],
+        "volumes": [
+          {
+            "name": "config",
+            "types": [
+              "configMap"
+            ],
+            "configMap": {
+              "name": "prometheus-config"
+            }
+          },
+          {
+            "name": "data",
+            "types": [
+              "persistentVolumeClaim"
+            ],
+            "persistentVolumeClaim": {
+              "claimName": "prometheus-data"
+            }
+          },
+          {
+            "name": "alert-rules",
+            "types": [
+              "configMap"
+            ],
+            "configMap": {
+              "name": "prometheus-alert-rules"
+            }
+          },
+          {
+            "name": "p0-test-alert",
+            "types": [
+              "configMap"
+            ],
+            "configMap": {
+              "name": "prometheus-p0-test-alert"
+            }
+          },
+          {
+            "name": "alert-rules-optional",
+            "types": [
+              "configMap"
+            ],
+            "configMap": {
+              "name": "prometheus-alert-rules-optional",
+              "optional": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "Service",
+      "namespace": "monitoring-api",
+      "name": "prometheus",
+      "selected_spec": {
+        "type": "ClusterIP",
+        "selector": {
+          "app": "prometheus"
+        },
+        "ports": [
+          {
+            "port": 9090,
+            "targetPort": 9090,
+            "protocol": "TCP"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "PersistentVolumeClaim",
+      "namespace": "monitoring-api",
+      "name": "prometheus-data",
+      "selected_spec": {
+        "storageClassName": "fds-local-storage",
+        "accessModes": [
+          "ReadWriteOnce"
+        ],
+        "resources": {
+          "requests": {
+            "storage": "20Gi"
+          }
+        },
+        "volumeName": "prometheus-data-pv"
+      }
+    },
+    {
+      "kind": "PersistentVolumeClaim",
+      "namespace": "monitoring-api",
+      "name": "alertmanager-data",
+      "selected_spec": {
+        "storageClassName": "fds-local-storage",
+        "accessModes": [
+          "ReadWriteOnce"
+        ],
+        "resources": {
+          "requests": {
+            "storage": "2Gi"
+          }
+        },
+        "volumeName": "alertmanager-data-pv"
+      }
+    }
+  ]
+}
