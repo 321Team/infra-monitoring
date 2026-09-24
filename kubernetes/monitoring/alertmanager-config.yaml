@@ -6,14 +6,16 @@ metadata:
 data:
   # A1 (시나리오 v1.4 §2) — "화면 수신 1개".
   # [BL] §11.2 P0 = Firing/Resolved 화면 수신·그룹화 뿐. IF-24(메일/SMS/메신저) = RETIRED.
-  # → 외부 integration(email/slack/webhook) 을 일부러 넣지 않는다. 알림 도달 범위 = Alertmanager UI + Grafana.
+  # 외부 integration은 원칙적으로 넣지 않는다. 단 CR-P1-MON-01-02(#75)로 Discord webhook 1개 목적지만
+  # 예외 허용(MON Lead 이재환 2026-09-22 승인, D35 갱신). 경로: egress-proxy01(10.1.93.56:3128) → discord.com:443.
+  # 이 receiver 구성은 #75 실전송 보고(2026-09-22)의 현장 적용 형상을 옮긴 것이다.
   # config reload: Alertmanager 는 파일 변경 시 자동 reload(inotify) 하므로 rollout restart 불필요.
   alertmanager.yml: |
     global:
       resolve_timeout: 5m
 
     route:
-      receiver: 'screen-only'
+      receiver: 'discord-notifications'   # #75: screen-only → discord-notifications
       # alertname + severity 로 묶어서 UI 한 줄로 본다
       group_by: ['alertname', 'severity']
       group_wait: 10s
@@ -33,5 +35,13 @@ data:
         equal: ['alertname']
 
     receivers:
-      # integration 없음 = 알림이 화면(Alertmanager UI)에만 뜬다. 의도된 설계.
+      # integration 없음 = 알림이 화면(Alertmanager UI)에만 뜬다. 미사용이지만 롤백 대비 보존(#75 승인 범위).
       - name: 'screen-only'
+
+      # Alertmanager UI 표시는 receiver와 무관하게 유지된다.
+      - name: 'discord-notifications'
+        discord_configs:
+          - webhook_url_file: /etc/alertmanager/secrets/discord/webhook_url   # Secret discord-webhook 마운트
+            send_resolved: true
+            http_config:
+              proxy_url: http://10.1.93.56:3128   # proxy_url은 http_config 하위여야 한다(최상위면 기동 실패, #75)
