@@ -1,0 +1,41 @@
+---
+- name: Collect MON public references through the existing control01 account
+  hosts: k8s-control01
+  gather_facts: false
+  become: false
+  vars:
+    ansible_ssh_use_tty: false
+  tasks:
+    - name: Run one-shot reader in memory without creating a remote script
+      ansible.builtin.raw: |
+        python3 - k8s-control01 <<'MON_FOLLOWUP_PY'
+        {{ lookup('ansible.builtin.file', playbook_dir + '/public_inventory.py') }}
+        MON_FOLLOWUP_PY
+      register: mon_read
+      changed_when: false
+      failed_when: false
+      no_log: true
+
+    - name: Parse only the allowlisted report
+      ansible.builtin.set_fact:
+        mon_report: "{{ mon_read.stdout | from_json }}"
+        cacheable: false
+      no_log: true
+
+    - name: Save report only on the operator controller
+      ansible.builtin.copy:
+        content: "{{ mon_report | to_nice_json }}\n"
+        dest: "{{ mon_result_dir }}/k8s-control01.json"
+        mode: '0600'
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    - name: Report incomplete collection without attempting repair
+      ansible.builtin.assert:
+        that:
+          - mon_report.host == 'k8s-control01'
+          - mon_report.collection_ok
+          - mon_read.rc == 0
+        quiet: true
+        fail_msg: 'Incomplete public metadata collection; retain results. No change attempted.'
