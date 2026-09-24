@@ -1,0 +1,39 @@
+# CR-P1-MON-01-02 (fds-project-baseline#75) — Alertmanager egress NetworkPolicy
+#
+# 이 파일은 클러스터에 2026-09-22 11:14:28Z 직접 적용된 `alertmanager-egress`
+# (monitoring-api)를 저장소로 옮긴 것이다. 이름·대상 Pod·프록시 규칙은 현장과 동일하다.
+#
+# 현장 대비 변경 1건 — DNS egress 규칙 제거:
+#   현장 객체에는 `namespaceSelector: {}` + `k8s-app: kube-dns` TCP/UDP 53 규칙이 있어
+#   kube-system이 아닌 모든 namespace의 kube-dns 라벨 Pod까지 허용한다.
+#   monitoring-api의 DNS는 이미 `monitoring-api-dns-allow`(podSelector {}, kube-system
+#   kube-dns 한정, infra-kubernetes manifests/03-networkpolicy.yaml)가 모든 Pod에
+#   허용하므로 이 규칙은 중복이면서 더 넓다. NetworkPolicy 허용은 합집합이라
+#   이 규칙을 제거해도 Alertmanager의 kube-system DNS 조회는 유지된다.
+#
+# 경로: Alertmanager -> egress-proxy01(10.1.93.56:3128) -> discord.com:443 (CONNECT)
+#   Squid allowlist가 discord.com만 허용한다(infra-ansible roles/egress_proxy).
+#   승인 근거: DEC-P1-EGRESS-01 (fds-project-baseline#78), #75 Discord 예외(정식 D-ID 처리 대기).
+#
+# 적용: 저장소 병합은 적용이 아니다. 운영 반영(`kubectl apply`로 DNS 규칙 제거)은
+#   독립 리뷰 완료 SHA로 #75 Lead가 별도 수행하고, 반영 후 Discord 전송·DNS 조회를 재확인한다.
+#   복구: 현장 원본(DNS 규칙 포함)은 PR 코멘트에 보존한 YAML로 재적용한다.
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: alertmanager-egress
+  namespace: monitoring-api
+spec:
+  podSelector:
+    matchLabels:
+      app: alertmanager
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.1.93.56/32   # egress-proxy01
+      ports:
+        - protocol: TCP
+          port: 3128              # cr_mon_proxy_port (infra-ansible roles/egress_proxy/defaults/main.yml)
