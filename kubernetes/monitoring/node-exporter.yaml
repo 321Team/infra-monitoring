@@ -14,12 +14,14 @@ spec:
       labels:
         app: node-exporter
     spec:
+      imagePullSecrets:
+        - name: harbor-pull-secret
       serviceAccountName: node-exporter-sa
       hostNetwork: true
       hostPID: true
       containers:
         - name: node-exporter
-          image: prom/node-exporter:latest
+          image: 10.1.93.54/fds/node-exporter@sha256:56566542aacd5be06add01d3456cd6279e2f7ddb4b24237fc8cdfbc3cc5f699f
           args:
             - --path.rootfs=/host
           ports:

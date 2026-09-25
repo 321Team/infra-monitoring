@@ -114,6 +114,8 @@ spec:
       labels:
         app: prometheus
     spec:
+      imagePullSecrets:
+        - name: harbor-pull-secret
       # A4: kubelet scrape 인증용. default SA 로는 nodes/metrics 권한이 없다.
       serviceAccountName: prometheus
       securityContext:
@@ -123,7 +125,7 @@ spec:
         fsGroupChangePolicy: OnRootMismatch   # Storage 인계 결정(#17) 수용
       containers:
         - name: prometheus
-          image: prom/prometheus:latest
+          image: 10.1.93.54/fds/prometheus:latest
           args:
             - "--config.file=/etc/prometheus/prometheus.yml"
             - "--web.enable-lifecycle"   # curl -X POST /-/reload 로 룰/설정 재적용
@@ -131,6 +133,22 @@ spec:
             - "--storage.tsdb.retention.size=16GB"   # Storage 인계 결정(#17): PVC 20Gi 중 여유 확보
           ports:
             - containerPort: 9090
+          # #17 AC: 컴포넌트 공식 Probe. TSDB/WAL 이 커지면 기동이 느려지므로 startup 유예를 크게 잡고,
+          # liveness 는 그 뒤에만 동작 — 재시작 후 WAL replay 중 liveness 가 죽이는 루프를 방지한다.
+          startupProbe:
+            httpGet: { path: /-/ready, port: 9090 }
+            periodSeconds: 10
+            failureThreshold: 60      # 최대 10분 기동 유예
+          readinessProbe:
+            httpGet: { path: /-/ready, port: 9090 }
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: { path: /-/healthy, port: 9090 }
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

@@ -19,34 +19,35 @@ data:
 
       # GWONUK 리뷰 B3(PR #4) 대응(2026-09-21): node-exporter 타깃이 실 Worker 3대(prometheus.yaml)로
       # 교체됨에 따라 "k3s-hairpin known-issue" 프레이밍은 더 이상 사실과 맞지 않아 제거함.
-      # ⚠️ NOT VERIFIED로 대체: DaemonSet이 실제로 이 3대 전부에 스케줄되는지는 정본 클러스터
-      # 실측 전이다(kubectl get pods -n monitoring-node -o wide로 확인). S8/TargetDown에는 아직
-      # 포함하지 않음 — 스케줄 가정이 틀리면 상시 오탐이 될 수 있어 실측 후 편입 여부를 재검토.
+      # 2026-09-23: DaemonSet Pod 3개 실행 확인됨. 다만 Prometheus Pod와 다른 노드는 GNP 크로스노드
+      # 이슈로 스크레이프가 안 돼서 상시 firing — S8/TargetDown에는 그 이슈(baseline#19) 해소 전까지
+      # 편입하지 않는다(오탐성 상시 알림 방지).
       - alert: NodeExporterDown
         expr: up{job="node-exporter"} == 0
         for: 30s
         labels:
           severity: warning
-          not_verified: "e-canon-daemonset-schedule"
+          known_issue: "gnp-crossnode-pod-cidr"
           kr: "노드 지표 수집 실패"
         annotations:
           summary: "node-exporter target is down"
-          description: "{{ $labels.instance }} 스크레이프 실패. E-CANON Worker 3대(.105/.107/.108) 대상 — DaemonSet 실제 스케줄 여부 NOT VERIFIED. S8/TargetDown 대상 아님(오탐 위험으로 별도 분리)."
+          description: "{{ $labels.instance }} 스크레이프 실패. E-CANON Worker 3대(.105/.107/.108) 대상 — DaemonSet Pod 3개 실행은 2026-09-23 확인됨. Prometheus Pod와 다른 노드만 타임아웃이라 kubelet과 동일한 GNP 크로스노드 이슈로 추정(baseline#19). S8/TargetDown 대상 아님."
 
-      # kubelet(10250) : E-K3S에서는 pod→노드 자기 IP 도달 제약(No route to host)이 원인이었다.
-      # E-CANON에서는 kubelet 타깃도 실 6-node IP로 교체됨(prometheus.yaml) — 아래 known_issue
-      # 라벨/설명은 여전히 E-K3S 기준으로 남아있음(OPEN, 위 주석 참조. NodeExporterDown과 달리
-      # 이번 PR 리뷰에서 차단 대상으로 지적되지 않아 이번 수정 범위에는 포함하지 않음).
-      - alert: KubeletScrapeDownK3s
+      # kubelet(10250) : 2026-09-23 정본 실측 기준으로 재작성(구 KubeletScrapeDownK3s, E-K3S hairpin 문구 제거).
+      # 정본 6노드에서 kubelet/cadvisor 12개 타깃 전부 down — Calico GNP가 kubelet(10250)을 호스트 IP
+      # 소스만 허용해서, VXLAN 디캡슐화 후 출발지로 노출되는 Pod CIDR(10.244.0.0/16)이 걸리는 것으로 추정
+      # (정황 근거, 서버 측 deny 카운터 대조 전). 같은 노드는 TLS IP SAN 부재로 별도 실패.
+      # 정책 변경은 P1-SEC/K8S 담당 판단 사항 → fds-project-baseline#19 코멘트로 에스컬레이션함.
+      - alert: KubeletScrapeDown
         expr: up{job=~"kubelet|kubelet-cadvisor"} == 0
         for: 2m
         labels:
           severity: info
-          known_issue: "k3s-hairpin"
-          kr: "kubelet 지표 수집 실패 (k3s 단일노드 한계)"
+          known_issue: "gnp-crossnode-pod-cidr"
+          kr: "kubelet 지표 수집 실패 (Pod→kubelet 경로)"
         annotations:
-          summary: "kubelet scrape down (edge01 k3s 단일노드 hairpin)"
-          description: "pod→노드 IP(:10250) 도달 제약. 실 6노드(.102~.105/.107/.108:10250)에서는 정석. S8 대상 아님."
+          summary: "kubelet scrape down ({{ $labels.instance }})"
+          description: "Prometheus Pod→{{ $labels.instance }} kubelet(:10250) 스크레이프 실패. 정본 6노드 전체에서 확인된 알려진 이슈(GNP Pod CIDR 미허용 추정 + kubelet 인증서 IP SAN 부재) — 원인·제안은 baseline#19 참조, 정책 담당 판단 대기. S8/TargetDown 대상 아님."
 
       # S8 / TC-TARGET : 스크레이프 타깃 다운. node-exporter/kubelet 은 위 known-issue 로 분리 → 제외.
       - alert: TargetDown

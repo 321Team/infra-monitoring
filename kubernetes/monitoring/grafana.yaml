@@ -31,6 +31,8 @@ spec:
       labels:
         app: grafana
     spec:
+      imagePullSecrets:
+        - name: harbor-pull-secret
       automountServiceAccountToken: false   # GWONUK 리뷰 비차단#3(PR #4): K8s API 호출 안 함
       securityContext:
         runAsNonRoot: true
@@ -39,9 +41,24 @@ spec:
         fsGroupChangePolicy: OnRootMismatch   # Storage 인계 결정(#17) 수용
       containers:
         - name: grafana
-          image: grafana/grafana:latest
+          image: 10.1.93.54/fds/grafana:latest
           ports:
             - containerPort: 3000
+          # #17 AC: 컴포넌트 공식 Probe(/api/health 는 인증 불필요). startup 통과 전에는 다른 Probe 미시작.
+          startupProbe:
+            httpGet: { path: /api/health, port: 3000 }
+            periodSeconds: 5
+            failureThreshold: 60      # 최대 5분 기동 유예(대시보드 provisioning)
+          readinessProbe:
+            httpGet: { path: /api/health, port: 3000 }
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: { path: /api/health, port: 3000 }
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
           env:
             - name: GF_SECURITY_ADMIN_USER
               valueFrom:
@@ -62,6 +79,28 @@ spec:
               value: "false"
             - name: GF_USERS_ALLOW_SIGN_UP
               value: "false"
+            # 노드는 GNP로 인터넷 차단(Gate2). Grafana가 시작 시 grafana.com으로
+            # 플러그인 버전 확인을 시도하다 타임아웃 → prometheus 등 내장 플러그인까지
+            # 로딩 실패하는 문제 발견(2026-09-22) — 업데이트 확인 자체를 꺼서 해결.
+            - name: GF_ANALYTICS_REPORTING_ENABLED
+              value: "false"
+            - name: GF_ANALYTICS_CHECK_FOR_UPDATES
+              value: "false"
+            - name: GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES
+              value: "false"
+            # 위 analytics 설정으로도 plugin.backgroundinstaller(grafana-advisor-app 등
+            # 사전설치 플러그인 목록)가 grafana.com에 계속 재시도하는 걸 못 막아서 추가.
+            - name: GF_PLUGINS_PREINSTALL_DISABLED
+              value: "true"
+          # monitoring-api-default-limits LimitRange 기본값(512Mi)이 부족해서
+          # OOMKilled(exit 137) 반복 발생(2026-09-22 실측) — 명시적으로 상향.
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
