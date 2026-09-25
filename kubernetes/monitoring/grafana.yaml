@@ -48,6 +48,7 @@ spec:
           startupProbe:
             httpGet: { path: /api/health, port: 3000 }
             periodSeconds: 5
+            timeoutSeconds: 3
             failureThreshold: 60      # 최대 5분 기동 유예(대시보드 provisioning)
           readinessProbe:
             httpGet: { path: /api/health, port: 3000 }

@@ -59,7 +59,7 @@ data:
       # 네트워크: allow-prometheus-egress-kubelet.yaml (monitoring-api ns egress → 6-node:10250).
       #
       # 아래 static_configs 는 E-CANON(정본 6-node) 값으로 이미 갱신됨(2026-09-21).
-      # E-K3S(edge01 단일 노드) 재적용 시에는 KubeletScrapeDownK3s(info) known-issue 로
+      # E-K3S(edge01 단일 노드) 재적용 시에는 E-K3S 참고본(references/e-k3s)의 KubeletScrapeDownK3s(info) known-issue 로
       # 되돌리고 S8/TargetDown 대상에서 제외해야 한다 — 이 파일은 E-CANON 전용으로 유지.
       # CANONICAL_GAPS.md(#17/#19): "kubelet insecure_skip_verify → 승인 trust/SAN 경로와
       # TLS 긍정·부정 시험; 우회 금지". ca_file은 kubeadm 계열 클러스터에서 kubelet serving
@@ -138,6 +138,7 @@ spec:
           startupProbe:
             httpGet: { path: /-/ready, port: 9090 }
             periodSeconds: 10
+            timeoutSeconds: 3
             failureThreshold: 60      # 최대 10분 기동 유예
           readinessProbe:
             httpGet: { path: /-/ready, port: 9090 }

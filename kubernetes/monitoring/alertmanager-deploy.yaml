@@ -35,6 +35,7 @@ spec:
         startupProbe:
           httpGet: { path: /-/ready, port: 9093 }
           periodSeconds: 5
+          timeoutSeconds: 3
           failureThreshold: 36        # 최대 3분 기동 유예
         readinessProbe:
           httpGet: { path: /-/ready, port: 9093 }
