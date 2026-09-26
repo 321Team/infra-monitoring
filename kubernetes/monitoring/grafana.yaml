@@ -11,7 +11,7 @@ data:
         uid: prometheus            # A3: 대시보드 JSON 이 이 uid 로 참조
         type: prometheus
         access: proxy
-        url: http://prometheus:9090
+        url: http://prometheus.monitoring-api.svc:9090   # #17 요구사항 표기(FQDN). 이전 값 http://prometheus:9090(같은 Service)
         isDefault: true
 ---
 apiVersion: apps/v1

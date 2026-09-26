@@ -12,6 +12,10 @@
 #      `semanage fcontext -a -t container_file_t "/home/fds-local-pv(/.*)?"` + `restorecon -Rv` 실행,
 #      user_home_dir_t/user_home_t → container_file_t relabel 성공 확인.
 #   4. 실제 free space 재확인 완료: `df -h /home` → 167G 중 163G 가용(2% 사용) — 제안 시점 실측과 일치.
+#   증적(2026-09-26 편입): fds-project-evidence `evidence/P1-MON-01/received-20260926T0401Z/`
+#     - worker03-20260921/console-transcript.txt: 위 1~4의 9/21 실행 출력(콘솔 제출 자료, 서버 Hash 없음)
+#     - worker03-20260926/pv-recheck.txt: 9/26 재확인(서버 파일). fcontext 등록 확인. mode는 750→2770
+#       (Pod fsGroup 적용 영향으로 추정, NOT VERIFIED), owner·라벨·가용량은 같음.
 #
 # PVC 20Gi/5Gi/2Gi 는 CONFIG_DEFAULT_CANDIDATE — 불변값 아님, Runtime 사용률로 조정 가능.
 apiVersion: storage.k8s.io/v1
