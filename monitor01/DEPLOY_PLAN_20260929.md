@@ -27,7 +27,23 @@
 ## 9/29(화) — receiver·Blackbox 기동, LB Probe 실패·복구
 1. **사전 조회:** `podman images`, `ss -ltnp`, `firewall-cmd --list-all`, `getenforce`, `df -h /var`
 2. **디렉터리 준비:** 위 경로를 만들고, 데이터 디렉터리는 `65534:65534`(prometheus 이미지 사용자)로 둔다. SELinux는 볼륨 `:Z`로 처리한다. 키 디렉터리는 relabel하지 않는다.
-3. **설정 준비:** `source_ipv4`는 계속 비워 둔다. 첫날에는 NGINX/sender를 만들지 않는다. receiver 설정은 README의 heartbeat/watchdog + `blackbox/receiver-scrape-blackbox.json`만 합쳐 `/etc/fds/monitor01/receiver/prometheus.yml`에 두고, Blackbox 설정은 저장소 `blackbox.yml`과 byte/hash를 대조해 `/etc/fds/monitor01/blackbox/blackbox.yml`로 둔다. 실제 승인 이미지의 `promtool check config` / `check rules`를 먼저 통과해야 한다.\n4. **localhost-only 기동:** Blackbox Harbor digest가 확정된 뒤 아래 저장소 실행기만 사용한다. 임의 `podman run` 재작성은 하지 않는다.\n   - `python3 monitor01/runtime_launch_local.py start --receiver-image 10.1.93.54/fds/prometheus@sha256:b77f9cee82fd1c61521634d2d6b192fc526ffd938e904b8e6836b6c0cf8d875a --blackbox-image <approved-blackbox@sha256:...>`\n   - 실행기는 비-digest 이미지, 기존 동명 컨테이너, 누락 config/data, root 실행을 거부한다.\n   - 성공 기준은 `ss -ltnH`에서 19090·9115가 각각 `127.0.0.1`에만 존재하는 것이다. `0.0.0.0`, `::`, 관리망 IP listen이 하나라도 보이면 실행기가 두 컨테이너를 회수하고 STOP한다.\n5. **LB Probe 시험(#17 AC "API LB TCP Probe 실패·복구")**\n   - 정상: `probe_success{instance="10.1.93.109:6443"}` = 1을 2회 이상 확인한다.\n   - 영향 경계: fault rule은 **monitor01 전체**의 `.109:6443` OUTPUT을 최대 180초 REJECT한다. 클러스터/LB 설정은 바꾸지 않지만 monitor01의 다른 API-LB 소비자도 영향을 받는다. 실행 직전 스크립트가 현재 연결을 원문으로 출력하므로 다른 업무 소비자가 있으면 중단한다.\n   - 실행: `sudo -n python3 monitor01/runtime_fault_api_lb.py --ack-hostwide --duration 180 | tee <증적폴더>/fault-api-lb.jsonl`\n   - 자동 회수: 스크립트는 rule 추가 전에 systemd transient timer로 **동일 comment tag의 exact rule 제거**를 arm한다. SSH/셸이 끊겨도 timer가 회수한다. 정상 종료 시에도 exact rule을 제거하고 timer를 중지한 뒤 해당 tag 부재를 재확인한다.\n   - 실패 판정: fault 활성 중 `probe_success`가 0이 되지 않으면 시험 실패로 남기고 시간을 연장하거나 보안 통제를 완화하지 않는다.\n   - 복구 판정: rule 부재 확인 후 `probe_success`가 1로 2회 이상 복귀해야 한다. pre/post `firewall-cmd --direct --get-all-rules`, 연결 목록, query_range, 시각, 실행 로그를 보존한다.\n6. **서비스 복구:** `python3 monitor01/runtime_launch_local.py stop`으로 이번 두 이름의 컨테이너만 회수한다. 설정·receiver data는 증적으로 보존하고 cockpit·인증서·개인키·SELinux·firewalld 서비스는 건드리지 않는다.
+3. **설정 준비:** `source_ipv4`는 계속 비워 둔다. 첫날에는 NGINX/sender를 만들지 않는다. receiver 설정은 README의 heartbeat/watchdog + `blackbox/receiver-scrape-blackbox.json`만 합쳐 `/etc/fds/monitor01/receiver/prometheus.yml`에 두고, Blackbox 설정은 저장소 `blackbox.yml`과 byte/hash를 대조해 `/etc/fds/monitor01/blackbox/blackbox.yml`로 둔다. 실제 승인 이미지의 `promtool check config` / `check rules`를 먼저 통과해야 한다.
+4. **localhost-only 기동:** Blackbox Harbor digest가 확정된 뒤 아래 저장소 실행기만 사용한다. 임의 `podman run` 재작성은 하지 않는다.
+   - `python3 monitor01/runtime_launch_local.py start --receiver-image 10.1.93.54/fds/prometheus@sha256:b77f9cee82fd1c61521634d2d6b192fc526ffd938e904b8e6836b6c0cf8d875a --blackbox-image <approved-blackbox@sha256:...>`
+   - 실행기는 비-digest 이미지, 기존 동명 컨테이너, 누락 config/data, root 실행을 거부한다.
+   - 성공 기준은 `ss -ltnH`에서 19090·9115가 각각 `127.0.0.1`에만 존재하는 것이다. `0.0.0.0`, `::`, 관리망 IP listen이 하나라도 보이면 실행기가 두 컨테이너를 회수하고 STOP한다.
+5. **LB Probe 시험(#17 AC "API LB TCP Probe 실패·복구")**
+   - 정상: `probe_success{instance="10.1.93.109:6443"}` = 1을 2회 이상 확인한다.
+   - 영향 경계: fault rule은 **monitor01 전체**의 `.109:6443` OUTPUT을 최대 180초 REJECT한다. 클러스터/LB 설정은 바꾸지 않지만 monitor01의 다른 API-LB 소비자도 영향을 받는다. 실행 직전 스크립트가 현재 연결을 원문으로 출력하므로 다른 업무 소비자가 있으면 중단한다.
+   - 실행: `sudo -n python3 monitor01/runtime_fault_api_lb.py --ack-hostwide --duration 180 | tee <증적폴더>/fault-api-lb.jsonl`
+   - 자동 회수: 스크립트는 rule 추가 전에 systemd transient timer로 **동일 comment tag의 exact rule 제거**를 arm한다. SSH/셸이 끊겨도 timer가 회수한다. 정상 종료 시에도 exact rule을 제거하고 timer를 중지한 뒤 해당 tag 부재를 재확인한다.
+   - OOB/로컬 콘솔 회수: 자동 timer와 별개로 `sudo firewall-cmd --direct --get-all-rules | grep FDS_MON19_`에서 **이번 로그에 기록된 tag만** 찾는다. 다른 rule은 삭제하지 않는다.
+     - exact 제거: `sudo firewall-cmd --direct --remove-rule ipv4 filter OUTPUT 0 -d 10.1.93.109/32 -p tcp --dport 6443 -m comment --comment <FDS_MON19_tag> -j REJECT`
+     - timer 정리: `<FDS_MON19_tag>`를 소문자로 바꾼 unit에 대해 `sudo systemctl stop <unit>.timer <unit>.service`를 수행한다.
+     - tag를 특정하지 못하면 임의 삭제하지 않고 OOB에서 `--get-all-rules` 원문과 fault 로그를 대조한 뒤 회수한다.
+   - 실패 판정: fault 활성 중 `probe_success`가 0이 되지 않으면 시험 실패로 남기고 시간을 연장하거나 보안 통제를 완화하지 않는다.
+   - 복구 판정: rule 부재 확인 후 `probe_success`가 1로 2회 이상 복귀해야 한다. pre/post `firewall-cmd --direct --get-all-rules`, 연결 목록, query_range, 시각, 실행 로그를 보존한다.
+6. **서비스 복구:** `python3 monitor01/runtime_launch_local.py stop`으로 이번 두 이름의 컨테이너만 회수한다. 설정·receiver data는 증적으로 보존하고 cockpit·인증서·개인키·SELinux·firewalld 서비스는 건드리지 않는다.
 
 ## 9/30(수) — sender 연결과 출발지 실측 (ICR 공동)
 1. 클러스터 Secret 2개를 만든다(값 비기록). CA는 공개 인증서, auth password는 monitor01 htpasswd와 짝을 맞춘다.
