@@ -18,20 +18,16 @@
 - blackbox-exporter, nginx: Harbor 미러링은 HBR(이하영) 승인이 필요하다(#17 요청). 승인되면 9/22와 같은 경로(ansible01 → tar → push)를 쓰고, digest를 기록한다.
 - monitor01에는 Harbor 경로가 없으므로, 같은 tar를 ansible01 → monitor01(관리망)로 `scp`한 뒤 `podman load`한다. load 후 `podman images --digests`로 digest를 대조한다.
 
+## 저장소 안전 실행기
+
+- `monitor01/runtime_launch_local.py`: monitor01의 `server01_monitor`만 실행한다. Harbor **digest 참조만** 받고 receiver/Blackbox의 exact Podman argv를 저장소 코드로 고정한다. receiver는 `127.0.0.1:19090`, Blackbox는 `127.0.0.1:9115`를 강제하고, 기동 직후 `ss -ltnH` 결과가 localhost-only가 아니면 이번 두 컨테이너를 즉시 회수한다.
+- `monitor01/runtime_fault_api_lb.py`: `server01_monitor`의 `sudo -n` 실행만 허용한다. 영향 범위는 **monitor01의 모든 OUTPUT TCP → 10.1.93.109:6443**이다. 동일 목적지의 기존 OUTPUT rule이 있으면 중단한다. firewalld direct rule을 넣기 전에 systemd transient timer로 동일 rule의 30~180초 자동 회수를 먼저 arm하고, 정상 종료 시 exact rule 제거와 timer 정리를 수행한다.
+- 두 스크립트 모두 보안 통제를 해제하지 않는다. SELinux/firewalld 서비스 자체를 중지하거나 `--insecure` 옵션을 쓰지 않는다.
+
 ## 9/29(화) — receiver·Blackbox 기동, LB Probe 실패·복구
 1. **사전 조회:** `podman images`, `ss -ltnp`, `firewall-cmd --list-all`, `getenforce`, `df -h /var`
 2. **디렉터리 준비:** 위 경로를 만들고, 데이터 디렉터리는 `65534:65534`(prometheus 이미지 사용자)로 둔다. SELinux는 볼륨 `:Z`로 처리한다. 키 디렉터리는 relabel하지 않는다.
-3. **설정 생성:** 이 시점에는 `render_candidate.py`가 `source_ipv4` 부재로 중단된다. 그래서 첫날에는 receiver 설정을 다음 조합으로 직접 만든다.
-   - `watchdog.rules.json`: README의 `absent_over_time(fds_monitoring_heartbeat[5m])` 규칙과 같다
-   - `blackbox/receiver-scrape-blackbox.json`을 `scrape_configs`에 넣는다
-   - `promtool check config` / `check rules`를 같은 이미지로 실행한다
-4. **기동:** blackbox를 `127.0.0.1:9115`, receiver를 `127.0.0.1:19090`(`--web.enable-remote-write-receiver`)으로 띄운다.
-5. **LB Probe 시험(#17 AC "API LB TCP Probe 실패·복구")**
-   - 정상: `probe_success{instance="10.1.93.109:6443"}` = 1을 2회 이상 확인한다.
-   - 실패 유도: **monitor01에서만** firewalld direct rule로 `.109:6443` 출력을 3분간 거부한다. 클러스터와 LB에는 영향이 없다. `probe_success`가 0이 되는지 확인한다.
-   - 복구: 규칙을 제거한 뒤 1로 돌아오는지 확인한다.
-   - 기록: query_range 원문, 시각, 규칙 추가·삭제 명령. 이 방식은 "monitor01 관점의 Probe 실패·복구"다. LB 자체 장애 시험은 P1-LB-01(이권욱) 범위다.
-6. **복구 절차:** `podman rm -f`로 이번에 만든 컨테이너만 지우고, 설정·데이터는 증적으로 보존한다. cockpit·인증서·키는 건드리지 않는다.
+3. **설정 준비:** `source_ipv4`는 계속 비워 둔다. 첫날에는 NGINX/sender를 만들지 않는다. receiver 설정은 README의 heartbeat/watchdog + `blackbox/receiver-scrape-blackbox.json`만 합쳐 `/etc/fds/monitor01/receiver/prometheus.yml`에 두고, Blackbox 설정은 저장소 `blackbox.yml`과 byte/hash를 대조해 `/etc/fds/monitor01/blackbox/blackbox.yml`로 둔다. 실제 승인 이미지의 `promtool check config` / `check rules`를 먼저 통과해야 한다.\n4. **localhost-only 기동:** Blackbox Harbor digest가 확정된 뒤 아래 저장소 실행기만 사용한다. 임의 `podman run` 재작성은 하지 않는다.\n   - `python3 monitor01/runtime_launch_local.py start --receiver-image 10.1.93.54/fds/prometheus@sha256:b77f9cee82fd1c61521634d2d6b192fc526ffd938e904b8e6836b6c0cf8d875a --blackbox-image <approved-blackbox@sha256:...>`\n   - 실행기는 비-digest 이미지, 기존 동명 컨테이너, 누락 config/data, root 실행을 거부한다.\n   - 성공 기준은 `ss -ltnH`에서 19090·9115가 각각 `127.0.0.1`에만 존재하는 것이다. `0.0.0.0`, `::`, 관리망 IP listen이 하나라도 보이면 실행기가 두 컨테이너를 회수하고 STOP한다.\n5. **LB Probe 시험(#17 AC "API LB TCP Probe 실패·복구")**\n   - 정상: `probe_success{instance="10.1.93.109:6443"}` = 1을 2회 이상 확인한다.\n   - 영향 경계: fault rule은 **monitor01 전체**의 `.109:6443` OUTPUT을 최대 180초 REJECT한다. 클러스터/LB 설정은 바꾸지 않지만 monitor01의 다른 API-LB 소비자도 영향을 받는다. 실행 직전 스크립트가 현재 연결을 원문으로 출력하므로 다른 업무 소비자가 있으면 중단한다.\n   - 실행: `sudo -n python3 monitor01/runtime_fault_api_lb.py --ack-hostwide --duration 180 | tee <증적폴더>/fault-api-lb.jsonl`\n   - 자동 회수: 스크립트는 rule 추가 전에 systemd transient timer로 **동일 comment tag의 exact rule 제거**를 arm한다. SSH/셸이 끊겨도 timer가 회수한다. 정상 종료 시에도 exact rule을 제거하고 timer를 중지한 뒤 해당 tag 부재를 재확인한다.\n   - 실패 판정: fault 활성 중 `probe_success`가 0이 되지 않으면 시험 실패로 남기고 시간을 연장하거나 보안 통제를 완화하지 않는다.\n   - 복구 판정: rule 부재 확인 후 `probe_success`가 1로 2회 이상 복귀해야 한다. pre/post `firewall-cmd --direct --get-all-rules`, 연결 목록, query_range, 시각, 실행 로그를 보존한다.\n6. **서비스 복구:** `python3 monitor01/runtime_launch_local.py stop`으로 이번 두 이름의 컨테이너만 회수한다. 설정·receiver data는 증적으로 보존하고 cockpit·인증서·개인키·SELinux·firewalld 서비스는 건드리지 않는다.
 
 ## 9/30(수) — sender 연결과 출발지 실측 (ICR 공동)
 1. 클러스터 Secret 2개를 만든다(값 비기록). CA는 공개 인증서, auth password는 monitor01 htpasswd와 짝을 맞춘다.
