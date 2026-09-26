@@ -29,7 +29,10 @@ main `1b1ef1b`의 `kubernetes/monitoring/alertmanager-egress.yaml`은 현장 객
 이미지·`imagePullSecrets`·Probe는 [PR12](https://github.com/321Team/infra-monitoring/pull/12)(2026-09-26 병합)로 main에 반영됐다. 이 절은 이 PR에 남은 `alertmanager-deploy.yaml`의 Discord Secret mount와 `alertmanager-config.yaml`의 `discord-notifications` receiver만 다룬다.
 
 1. **`alertmanager-config.yaml`은 route 분기 PR 반영 전에는 적용하지 않는다.** 현장 route는 이 파일과 다르다(2026-09-25 10:27 `NodeExporterDown`이 Discord로 도착). 또한 MON Lead가 발송 범위를 `severity: critical`만으로 결정했다([#75](https://github.com/321Team/fds-project-baseline/issues/75#issuecomment-5842829934)). 발송 범위는 #75 Lead의 route 분기 PR에서 확정·적용한다.
-2. `alertmanager-deploy.yaml`은 `kubectl diff -f`로 비교한다. 기대 결과는 "변경 없음"이다. Secret volume 이름이 현장과 다르면 이름을 현장에 맞출지, 롤링을 감수할지 Lead가 결정한다. 현장 volume 이름은 아직 수집하지 않았다.
+2. `alertmanager-deploy.yaml`은 `kubectl diff -f`로 비교한다. 기대 결과는 "변경 없음"이다. 차이가 나오면 **적용을 중단**하고 종류별로 Lead가 판단한다.
+   - Secret volume 이름이 현장과 다른 경우: 이름을 현장에 맞출지, 롤링을 감수할지 결정한다. 현장 volume 이름은 아직 수집하지 않았다.
+   - Probe 차이인 경우: PR12의 Probe는 현장에 `kubectl patch`로 먼저 들어갔고, startupProbe `timeoutSeconds: 3`은 그 뒤(`ee4f93f`)에 소스에만 추가됐다. 이 차이는 예상된 것이다. 적용하면 Pod가 재시작되므로 공백을 감수할지 판단한다.
+   - 그 밖의 차이: 원인을 확인하기 전에는 적용하지 않는다.
 3. Deployment spec이 바뀌면 Pod가 재시작된다. Alertmanager는 `Recreate` 전략이라 공백이 생기므로 알림 공백 시간을 기록한다.
 4. **실패 시 복구:** 적용 전에 `kubectl get deploy alertmanager -n monitoring-api -o yaml`로 백업하고, 백업본을 재적용한다. Git revert만으로는 현장이 복구되지 않는다.
 

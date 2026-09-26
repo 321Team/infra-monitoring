@@ -7,9 +7,10 @@
 #   현장 객체에는 `namespaceSelector: {}` + `k8s-app: kube-dns` TCP/UDP 53 규칙이 있어
 #   kube-system이 아닌 모든 namespace의 kube-dns 라벨 Pod까지 허용한다.
 #   monitoring-api의 DNS는 이미 `monitoring-api-dns-allow`(podSelector {}, kube-system
-#   kube-dns 한정, infra-kubernetes manifests/03-networkpolicy.yaml)가 모든 Pod에
+#   kube-dns 한정, 이 디렉터리 monitoring-api-dns-allow.yaml)가 모든 Pod에
 #   허용하므로 이 규칙은 중복이면서 더 넓다. NetworkPolicy 허용은 합집합이라
 #   이 규칙을 제거해도 Alertmanager의 kube-system DNS 조회는 유지된다.
+#   (networkpolicy.yaml의 `allow-monitoring-egress-dns`도 kube-system 전체 Pod로 53을 허용한다.)
 #
 # 경로: Alertmanager -> egress-proxy01(10.1.93.56:3128) -> discord.com:443 (CONNECT)
 #   Squid allowlist가 discord.com만 허용한다(infra-ansible roles/egress_proxy).
@@ -18,6 +19,7 @@
 # 적용: 저장소 병합은 적용이 아니다. 운영 반영(`kubectl apply`로 DNS 규칙 제거)은
 #   독립 리뷰 완료 SHA로 #75 Lead가 별도 수행하고, 반영 후 Discord 전송·DNS 조회를 재확인한다.
 #   복구: 현장 원본(DNS 규칙 포함)은 PR 코멘트에 보존한 YAML로 재적용한다.
+#   반영 완료: 2026-09-25 KST, #75 Lead 이하영 (fds-project-baseline#75 issuecomment-5826812494).
 
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
