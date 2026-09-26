@@ -6,8 +6,11 @@ metadata:
 data:
   # A1 (시나리오 v1.4 §2) — "화면 수신 1개".
   # [BL] §11.2 P0 = Firing/Resolved 화면 수신·그룹화 뿐. IF-24(메일/SMS/메신저) = RETIRED.
-  # 외부 integration은 원칙적으로 넣지 않는다. 단 CR-P1-MON-01-02(#75)로 Discord webhook 1개 목적지만
-  # 예외 허용(MON Lead 이재환 2026-09-22 승인, D35 갱신). 경로: egress-proxy01(10.1.93.56:3128) → discord.com:443.
+  # ⚠ route 분기 PR(#75 MON Lead 결정: Discord 발송 범위 제한) 병합 전에는 이 ConfigMap을 현장에 적용하지 않는다.
+  #   아래 기본 receiver는 전체 알림을 Discord로 보내며, 결정된 발송 범위와 다르다(Runbook §B-1).
+  # 외부 integration은 원칙적으로 넣지 않는다(D33). 단 CR-P1-MON-01-02(#75)로 Discord webhook 1개 목적지만
+  # 예외 허용 — MON Lead 승인: https://github.com/321Team/fds-project-baseline/issues/75#issuecomment-5842829934
+  # (2026-09-26). 예외 D-ID는 정본 등록 대기(#75 Decision). 경로: egress-proxy01(10.1.93.56:3128) → discord.com:443.
   # 이 receiver 구성은 #75 실전송 보고(2026-09-22)의 현장 적용 형상을 옮긴 것이다.
   # config reload: Alertmanager 는 파일 변경 시 자동 reload(inotify) 하므로 rollout restart 불필요.
   alertmanager.yml: |
