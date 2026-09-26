@@ -41,7 +41,8 @@ spec:
         fsGroupChangePolicy: OnRootMismatch   # Storage 인계 결정(#17) 수용
       containers:
         - name: grafana
-          image: 10.1.93.54/fds/grafana:latest
+          # 2026-09-26 현장 Pod imageID로 고정(이전 :latest). Trivy 승인 digest 확정 시 교체
+          image: 10.1.93.54/fds/grafana@sha256:7a1ff54408c90357ff1c76189e5bbc24f898531cb771fbbfe6a477f00de37d5b
           ports:
             - containerPort: 3000
           # #17 AC: 컴포넌트 공식 Probe(/api/health 는 인증 불필요). startup 통과 전에는 다른 Probe 미시작.
