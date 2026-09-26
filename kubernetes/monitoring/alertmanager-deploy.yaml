@@ -15,6 +15,8 @@ spec:
       labels:
         app: alertmanager
     spec:
+      imagePullSecrets:
+        - name: harbor-pull-secret
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
@@ -23,12 +25,28 @@ spec:
         fsGroupChangePolicy: OnRootMismatch   # Storage 인계 결정(#17) 수용
       containers:
       - name: alertmanager
-        image: prom/alertmanager:latest
+        image: 10.1.93.54/fds/alertmanager:latest
         args:
         - --config.file=/etc/alertmanager/alertmanager.yml
         - --storage.path=/alertmanager
         ports:
         - containerPort: 9093
+        # #17 AC: 컴포넌트 공식 Probe. startup 이 통과할 때까지 liveness/readiness 는 시작되지 않는다.
+        startupProbe:
+          httpGet: { path: /-/ready, port: 9093 }
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 36        # 최대 3분 기동 유예
+        readinessProbe:
+          httpGet: { path: /-/ready, port: 9093 }
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        livenessProbe:
+          httpGet: { path: /-/healthy, port: 9093 }
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 6         # 2분 연속 실패해야 재시작(오탐 재시작 루프 방지)
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true

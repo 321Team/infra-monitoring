@@ -41,10 +41,17 @@ alerts() {
   echo "${s:-(none)}"
 }
 
+scaled_down=0
 restore_ksm() {
+  # H03: 실제로 scale down을 실행했을 때만 복구를 시도한다. 사전점검 실패 등으로
+  # scale down 자체를 하지 않았는데 trap이 무조건 replicas=1을 강제하면, 실패 원인이
+  # 가려지고 의도치 않은 조작이 된다.
+  [[ "${scaled_down}" == "1" ]] || return 0
   echo
   echo "[S8] (trap) kube-state-metrics 복구 → replicas=1"
-  kubectl -n "${NS_KSM}" scale deploy/"${DEPLOY_KSM}" --replicas=1 >/dev/null 2>&1 || true
+  if ! kubectl -n "${NS_KSM}" scale deploy/"${DEPLOY_KSM}" --replicas=1 >/dev/null 2>&1; then
+    echo "[S8] WARNING: replicas=1 복구 명령이 실패했습니다 — 수동으로 확인/복구 필요: kubectl -n ${NS_KSM} scale deploy/${DEPLOY_KSM} --replicas=1" >&2
+  fi
 }
 trap restore_ksm EXIT
 
@@ -64,6 +71,7 @@ echo "[S8] t0  alerts: $(alerts)"
 echo
 
 echo "[S8] --- kube-state-metrics scale 0 ---"
+scaled_down=1
 kubectl -n "${NS_KSM}" scale deploy/"${DEPLOY_KSM}" --replicas=0
 kubectl -n "${NS_KSM}" rollout status deploy/"${DEPLOY_KSM}" --timeout=60s || true
 

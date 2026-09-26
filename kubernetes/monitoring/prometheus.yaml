@@ -59,7 +59,7 @@ data:
       # 네트워크: allow-prometheus-egress-kubelet.yaml (monitoring-api ns egress → 6-node:10250).
       #
       # 아래 static_configs 는 E-CANON(정본 6-node) 값으로 이미 갱신됨(2026-09-21).
-      # E-K3S(edge01 단일 노드) 재적용 시에는 KubeletScrapeDownK3s(info) known-issue 로
+      # E-K3S(edge01 단일 노드) 재적용 시에는 E-K3S 참고본(references/e-k3s)의 KubeletScrapeDownK3s(info) known-issue 로
       # 되돌리고 S8/TargetDown 대상에서 제외해야 한다 — 이 파일은 E-CANON 전용으로 유지.
       # CANONICAL_GAPS.md(#17/#19): "kubelet insecure_skip_verify → 승인 trust/SAN 경로와
       # TLS 긍정·부정 시험; 우회 금지". ca_file은 kubeadm 계열 클러스터에서 kubelet serving
@@ -114,6 +114,8 @@ spec:
       labels:
         app: prometheus
     spec:
+      imagePullSecrets:
+        - name: harbor-pull-secret
       # A4: kubelet scrape 인증용. default SA 로는 nodes/metrics 권한이 없다.
       serviceAccountName: prometheus
       securityContext:
@@ -123,7 +125,7 @@ spec:
         fsGroupChangePolicy: OnRootMismatch   # Storage 인계 결정(#17) 수용
       containers:
         - name: prometheus
-          image: prom/prometheus:latest
+          image: 10.1.93.54/fds/prometheus:latest
           args:
             - "--config.file=/etc/prometheus/prometheus.yml"
             - "--web.enable-lifecycle"   # curl -X POST /-/reload 로 룰/설정 재적용
@@ -131,6 +133,23 @@ spec:
             - "--storage.tsdb.retention.size=16GB"   # Storage 인계 결정(#17): PVC 20Gi 중 여유 확보
           ports:
             - containerPort: 9090
+          # #17 AC: 컴포넌트 공식 Probe. TSDB/WAL 이 커지면 기동이 느려지므로 startup 유예를 크게 잡고,
+          # liveness 는 그 뒤에만 동작 — 재시작 후 WAL replay 중 liveness 가 죽이는 루프를 방지한다.
+          startupProbe:
+            httpGet: { path: /-/ready, port: 9090 }
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 60      # 최대 10분 기동 유예
+          readinessProbe:
+            httpGet: { path: /-/ready, port: 9090 }
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: { path: /-/healthy, port: 9090 }
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
