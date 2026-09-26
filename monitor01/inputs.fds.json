@@ -1,0 +1,13 @@
+{
+  "schema": "fds.monitor01-tls-candidate.v1",
+  "receiver_port": 19090,
+  "source_ipv4": [],
+  "leaf_file": "/etc/fds/monitor01/tls/monitor01.crt",
+  "key_file": "/etc/fds/pki/monitor01/request/monitor01.key",
+  "root_file_on_sender": "/etc/prometheus/monitor01-ca/fds-root-ca.crt",
+  "nginx_password_file": "/etc/fds/monitor01/nginx/htpasswd",
+  "sender_username": "fds-heartbeat",
+  "sender_password_file": "/etc/prometheus/monitor01-auth/password",
+  "receiver_config_dir": "/etc/fds/monitor01/receiver",
+  "receiver_data_dir": "/var/lib/fds/monitor01/receiver"
+}
