@@ -1,0 +1,37 @@
+# CR-P1-MON-01-02 (fds-project-baseline#75) 후속 — monitoring-api DNS egress NetworkPolicy
+#
+# 이 파일은 클러스터에 2026-09-22T00:22:12Z 직접 적용된 `monitoring-api-dns-allow`
+# (monitoring-api, generation 1)를 저장소로 옮긴 것이다. spec은 2026-09-25 현장 조회본과 동일하다.
+# 어느 저장소에도 소스가 없던 현장 전용 객체였다(infra-monitoring PR #5 리뷰 비차단 지적).
+#
+# 역할: monitoring-api의 모든 Pod가 kube-system의 CoreDNS(`k8s-app: kube-dns`)에만
+#   UDP/TCP 53으로 나갈 수 있게 한다. `alertmanager-egress`에서 넓은 DNS 규칙을 뺀 근거다.
+#
+# 겹치는 정책: networkpolicy.yaml의 `allow-monitoring-egress-dns`(2026-09-22T05:45:35Z 현장 적용)는
+#   같은 Pod에 kube-system의 **모든 Pod**로 53을 허용해 이 정책보다 넓다. NetworkPolicy 허용은
+#   합집합이므로 현재 실효 DNS 범위는 그쪽이다. 어느 쪽을 남길지는 별도 결정 — 이 파일은 현장 기록만 한다.
+#
+# 적용: 현장과 spec이 같아 `kubectl diff` 결과는 무변경이어야 한다. 병합은 적용이 아니다.
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: monitoring-api-dns-allow
+  namespace: monitoring-api
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
