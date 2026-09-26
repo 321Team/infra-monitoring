@@ -3,13 +3,15 @@
 # 정본 = 단일 designated Worker / static local PV, non-HA Known Limitation(문서화된 제약).
 # host path: /home/fds-local-pv/{prometheus,grafana,alertmanager}
 #
-# 적용 전 필수 확인(이하영과 재검증 — 아직 NOT VERIFIED):
-#   1. worker03에 /home/fds-local-pv/{prometheus,grafana,alertmanager} 디렉터리 실제 생성
-#   2. owner/mode: 각 컨테이너 runAsUser(현재 65534/65534/472, Harbor digest 확정 후 재확정 예정)가
-#      쓰기 가능하도록 chown/chmod (fsGroupChangePolicy: OnRootMismatch 를 쓰더라도 최초 생성 시
-#      root:root 750 이면 초기 마운트가 실패할 수 있음 — 사전에 mkdir -p && chown 필요)
-#   3. SELinux persistent fcontext (worker03 seclabel 확인됨, semanage fcontext 필요할 수 있음)
-#   4. 실제 free space 재확인 (제안 시점 실측: /home 가용 약 163G)
+# 적용 전 필수 확인 — worker03 실측 완료 (2026-09-21, worker03 원격 셸에서 직접 실행한 명령 결과 기준):
+#   1. 디렉터리 생성 완료: /home/fds-local-pv/{prometheus,grafana,alertmanager} (mkdir -p)
+#   2. owner/mode 적용 완료: prometheus/alertmanager=nobody:nobody(65534:65534), grafana=472:472,
+#      전부 mode 750 (`ls -la` 결과로 확인). UID 값 자체는 Harbor 승인 digest 확정 전 임시값이라
+#      digest 확정 후 재확정 필요 — 이 부분만 이하영과 재검증 남음.
+#   3. SELinux persistent fcontext 적용 완료: getenforce=Enforcing 확인 후
+#      `semanage fcontext -a -t container_file_t "/home/fds-local-pv(/.*)?"` + `restorecon -Rv` 실행,
+#      user_home_dir_t/user_home_t → container_file_t relabel 성공 확인.
+#   4. 실제 free space 재확인 완료: `df -h /home` → 167G 중 163G 가용(2% 사용) — 제안 시점 실측과 일치.
 #
 # PVC 20Gi/5Gi/2Gi 는 CONFIG_DEFAULT_CANDIDATE — 불변값 아님, Runtime 사용률로 조정 가능.
 apiVersion: storage.k8s.io/v1

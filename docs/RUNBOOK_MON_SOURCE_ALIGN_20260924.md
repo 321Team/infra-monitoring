@@ -1,6 +1,6 @@
 # MON 소스·현장 정합 적용 절차 — 2026-09-24
 
-상태: **절차 초안 / Runtime NOT RUN**. 실행 여부와 시점은 각 Lead가 결정한다. 이 문서는 적용 지시나 승인 기록이 아니다. 책임: [#17](https://github.com/321Team/fds-project-baseline/issues/17) MON Lead 이재환, [#75](https://github.com/321Team/fds-project-baseline/issues/75) Lead 이하영.
+상태: **§A는 2026-09-25 10:17–10:19 KST #75 Lead가 적용 완료**([실행 기록](https://github.com/321Team/fds-project-baseline/issues/75#issuecomment-5826812494)). **§B는 절차 초안 / Runtime NOT RUN**. 실행 여부와 시점은 각 Lead가 결정한다. 이 문서는 적용 지시나 승인 기록이 아니다. 책임: [#17](https://github.com/321Team/fds-project-baseline/issues/17) MON Lead 이재환, [#75](https://github.com/321Team/fds-project-baseline/issues/75) Lead 이하영.
 
 공통 전제:
 - 실행 위치는 기존 승인 kubectl 경로(control01)다. 새 계정·권한·Secret을 만들지 않는다.
@@ -24,26 +24,18 @@ main `1b1ef1b`의 `kubernetes/monitoring/alertmanager-egress.yaml`은 현장 객
 4. **실패 시 복구**: `kubectl apply -f <작업폴더>/alertmanager-egress.before.yaml`. PR5 코멘트에 보존된 원본 YAML도 쓸 수 있다. 복구한 뒤 같은 합성 알림으로 다시 확인한다.
 5. **기록**: 적용 SHA와 리뷰 SHA, KST 시각, diff 요약, Discord 도착 시각을 #75에 남긴다. webhook URL은 남기지 않는다.
 
-## B. 현장 형상의 소스 반영분 적용 (이 PR)
+## B. Alertmanager Discord 구성 적용 (이 PR)
 
-이 PR은 현장에 이미 적용된 상태를 소스로 옮긴다. 따라서 **이상적인 적용 결과는 "변경 없음"**이다. 차이가 생기면 소스와 현장 중 어느 쪽이 맞는지 먼저 판정한다.
+이미지·`imagePullSecrets`·Probe는 [PR12](https://github.com/321Team/infra-monitoring/pull/12)(2026-09-26 병합)로 main에 반영됐다. 이 절은 이 PR에 남은 `alertmanager-deploy.yaml`의 Discord Secret mount와 `alertmanager-config.yaml`의 `discord-notifications` receiver만 다룬다.
 
-1. 대상은 `alertmanager-deploy.yaml`, `alertmanager-config.yaml`, `grafana.yaml`, `prometheus.yaml`, `kube-state-metrics.yaml`, `node-exporter.yaml`이다. 각각 `kubectl diff -f <파일>`로 비교한다.
-2. 예상되는 차이와 판정:
-
-   | 객체 | 예상 차이 | 조치 |
-   |---|---|---|
-   | Deployment 4개 / DaemonSet 1개 | image·imagePullSecrets 차이 없음 | 차이가 있으면 중단하고 현장 값을 확인 |
-   | alertmanager Deployment | Secret volume 이름이 현장과 다를 수 있음. 이 PR은 `discord-webhook`을 쓰며, 현장 volume 이름은 수집하지 않았음 | 이름만 다르면 소스를 현장 이름에 맞춰 수정할지, 적용 시 롤링을 감수할지 Lead가 결정 |
-   | alertmanager-config CM | 현장 hash와 같은지 확인하지 않음. #75 보고의 형상으로 작성함 | diff 원문을 대조한다. 현장에만 있는 내용은 덮어쓰지 말고 소스에 반영 |
-   | grafana Secret·PVC·다른 CM | 이 PR 범위 밖 | 적용하지 않음 |
-
-3. diff가 없거나, Lead가 수용한 차이만 남았을 때 파일 단위로 적용한다. Deployment spec이 바뀌면 Pod가 재시작된다. Alertmanager와 Prometheus는 `Recreate` 전략이라 잠시 공백이 생기므로 알림 공백 시간을 기록한다.
-4. **실패 시 복구**: 적용 전에 `kubectl get <kind> <name> -o yaml`로 백업하고, 백업본을 재적용한다. Git revert만으로는 현장 복구가 되지 않는다.
+1. **`alertmanager-config.yaml`은 route 분기 PR 반영 전에는 적용하지 않는다.** 현장 route는 이 파일과 다르다(2026-09-25 10:27 `NodeExporterDown`이 Discord로 도착). 또한 MON Lead가 발송 범위를 `severity: critical`만으로 결정했다([#75](https://github.com/321Team/fds-project-baseline/issues/75#issuecomment-5842829934)). 발송 범위는 #75 Lead의 route 분기 PR에서 확정·적용한다.
+2. `alertmanager-deploy.yaml`은 `kubectl diff -f`로 비교한다. 기대 결과는 "변경 없음"이다. Secret volume 이름이 현장과 다르면 이름을 현장에 맞출지, 롤링을 감수할지 Lead가 결정한다. 현장 volume 이름은 아직 수집하지 않았다.
+3. Deployment spec이 바뀌면 Pod가 재시작된다. Alertmanager는 `Recreate` 전략이라 공백이 생기므로 알림 공백 시간을 기록한다.
+4. **실패 시 복구:** 적용 전에 `kubectl get deploy alertmanager -n monitoring-api -o yaml`로 백업하고, 백업본을 재적용한다. Git revert만으로는 현장이 복구되지 않는다.
 
 ## 이 문서가 다루지 않는 것
 
 - 4개 workload의 승인 digest 확정. HBR/CICD Trivy Gate를 거친 digest가 확정되면 별도 PR로 tag를 digest로 바꾼다.
 - Grafana dashboard CM([PR10](https://github.com/321Team/infra-monitoring/pull/10))과 fds-overview 잔여 차이
 - `allow-prometheus-egress-scrape` 현장 `fds` 잔존, 무관리 NP 8개의 관리 주체 정리
-- monitor01 콘솔 수집(`ops/mon-followup/MONITOR01_CONSOLE.md`), IF-06B remote_write
+- monitor01 receiver 설계와 IF-06B remote_write. 콘솔 수집은 2026-09-25에 완료됐다([#17 기록](https://github.com/321Team/fds-project-baseline/issues/17#issuecomment-5832054238))

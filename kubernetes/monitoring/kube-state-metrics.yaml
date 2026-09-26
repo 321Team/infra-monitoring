@@ -13,14 +13,11 @@ spec:
       labels:
         app: kube-state-metrics
     spec:
-      serviceAccountName: kube-state-metrics-sa
-      imagePullSecrets:          # Harbor 비공개 프로젝트 인증(#17 9/22 생성, 값은 저장소 밖)
+      imagePullSecrets:
         - name: harbor-pull-secret
+      serviceAccountName: kube-state-metrics-sa
       containers:
         - name: kube-state-metrics
-          # 현장 형상(2026-09-24 05:59 KST 수집, docs/MON_FOLLOWUP_RECEIPT_20260924T055938.md).
-          # OPEN(#17): 승인 digest 미확정. Harbor 수동 미러링(#17 9/22, Trivy Gate 미경유)이라
-          #   관측 imageID sha256:8ca59a9893ecaebbea478099d99a9ffc9daa9f285a715adfa945246b111322a1를 승인 digest로 간주하지 않는다.
           image: 10.1.93.54/fds/kube-state-metrics:v2.13.0
           args:
             # A2/S1 : UnexpectedPodInFdsNs 룰이 kube_pod_labels{label_app=...} 를 쓰려면

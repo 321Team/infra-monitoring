@@ -15,25 +15,38 @@ spec:
       labels:
         app: alertmanager
     spec:
+      imagePullSecrets:
+        - name: harbor-pull-secret
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534   # OPEN(#17): Harbor 승인 digest 확정 후 실제 native UID로 재확정 필요
         fsGroup: 65534
         fsGroupChangePolicy: OnRootMismatch   # Storage 인계 결정(#17) 수용
-      imagePullSecrets:          # Harbor 비공개 프로젝트 인증(#17 9/22 생성, 값은 저장소 밖)
-        - name: harbor-pull-secret
       containers:
       - name: alertmanager
-        # 현장 형상(2026-09-24 05:59 KST 수집, docs/MON_FOLLOWUP_RECEIPT_20260924T055938.md).
-        # OPEN(#17): 승인 digest 미확정. Harbor 수동 미러링(#17 9/22, Trivy Gate 미경유)이라
-        #   관측 imageID sha256:babefaac616bdb9fb5037a2b70a3c0ffa988c68e96443621dd7360e60781ab67를 승인 digest로 간주하지 않는다.
         image: 10.1.93.54/fds/alertmanager:latest
         args:
         - --config.file=/etc/alertmanager/alertmanager.yml
         - --storage.path=/alertmanager
         ports:
         - containerPort: 9093
+        # #17 AC: 컴포넌트 공식 Probe. startup 이 통과할 때까지 liveness/readiness 는 시작되지 않는다.
+        startupProbe:
+          httpGet: { path: /-/ready, port: 9093 }
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 36        # 최대 3분 기동 유예
+        readinessProbe:
+          httpGet: { path: /-/ready, port: 9093 }
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        livenessProbe:
+          httpGet: { path: /-/healthy, port: 9093 }
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 6         # 2분 연속 실패해야 재시작(오탐 재시작 루프 방지)
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true

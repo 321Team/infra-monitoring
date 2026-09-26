@@ -14,15 +14,13 @@ spec:
       labels:
         app: node-exporter
     spec:
-      serviceAccountName: node-exporter-sa
-      imagePullSecrets:          # Harbor 비공개 프로젝트 인증(#17 9/22 생성, 값은 저장소 밖)
+      imagePullSecrets:
         - name: harbor-pull-secret
+      serviceAccountName: node-exporter-sa
       hostNetwork: true
       hostPID: true
       containers:
         - name: node-exporter
-          # Image Digest 고정: MON Lead가 2026-09-23 현장 DaemonSet에 적용·rollout 확인(#17 D33 조건5).
-          # 05:59 KST 수집에서 spec·Pod imageID 모두 이 digest(3/3)로 확인.
           image: 10.1.93.54/fds/node-exporter@sha256:56566542aacd5be06add01d3456cd6279e2f7ddb4b24237fc8cdfbc3cc5f699f
           args:
             - --path.rootfs=/host
