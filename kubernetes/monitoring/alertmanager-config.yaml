@@ -15,13 +15,18 @@ data:
       resolve_timeout: 5m
 
     route:
-      receiver: 'discord-notifications'   # #75: screen-only → discord-notifications
+      # 기본은 화면만. Discord는 아래 severity=critical 하위 route로만 보낸다.
+      # MON Lead 결정(#75, 2026-09-26): Discord 발송 범위 = severity=critical만. warning·info는 screen-only.
+      receiver: 'screen-only'
       # alertname + severity 로 묶어서 UI 한 줄로 본다
       group_by: ['alertname', 'severity']
       group_wait: 10s
       group_interval: 30s
       repeat_interval: 1h
       routes:
+        - matchers:
+            - severity = "critical"
+          receiver: 'discord-notifications'
         # 시연 중 노이즈가 큰 known-issue 는 별도 그룹으로만 분리(억제하지는 않음 — 정직 표기)
         - matchers:
             - alertname = "NodeExporterDown"
@@ -35,7 +40,7 @@ data:
         equal: ['alertname']
 
     receivers:
-      # integration 없음 = 알림이 화면(Alertmanager UI)에만 뜬다. 미사용이지만 롤백 대비 보존(#75 승인 범위).
+      # integration 없음 = 알림이 화면(Alertmanager UI)에만 뜬다. 기본 receiver(critical 외 전부).
       - name: 'screen-only'
 
       # Alertmanager UI 표시는 receiver와 무관하게 유지된다.
