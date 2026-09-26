@@ -335,11 +335,19 @@
       "source_blob": "471aaeb0b1d75ab143b13a25e5651c1b8c6c54df",
       "source_sha256": "abad1c2cf10a5adf9c798ca187bb423f0ab50ec0a3e9af7c6cf012f126e4f176",
       "destination_path": "references/e-k3s/scripts/demo/s8_target_down.sh",
-      "destination_blob": "471aaeb0b1d75ab143b13a25e5651c1b8c6c54df",
-      "destination_sha256": "abad1c2cf10a5adf9c798ca187bb423f0ab50ec0a3e9af7c6cf012f126e4f176",
+      "destination_blob": "e42f70bda66b3eb69065ccc45edb3ca2a8569e6e",
+      "destination_sha256": "8eca38279f98f4f52011c61b88c7636776a18bfdf37efe90a47e7f28f723ef89",
       "git_mode": "100644",
-      "transformation": "none",
-      "source_url": "https://github.com/supreme33-kr/fds-msa/blob/254b82231f8af79a06419b581174647bbccbe2bc/scripts/demo/s8_target_down.sh"
+      "transformation": "post-migration-edit-h03-trap-guard",
+      "source_url": "https://github.com/supreme33-kr/fds-msa/blob/254b82231f8af79a06419b581174647bbccbe2bc/scripts/demo/s8_target_down.sh",
+      "post_migration_change": {
+        "commit": "b330f9a82a9632ef1f05ff0969f69325ec290a6b",
+        "pull_request": "https://github.com/321Team/infra-monitoring/pull/12",
+        "merge_commit": "72e952c10323d0645fbc07f573709fb8ba1434d6",
+        "reason": "H03: trap이 scale down을 실행한 경우에만 kube-state-metrics replicas=1 복구를 시도하고, 복구 실패 시 경고를 출력하도록 수정",
+        "previous_destination_blob": "471aaeb0b1d75ab143b13a25e5651c1b8c6c54df",
+        "previous_destination_sha256": "abad1c2cf10a5adf9c798ca187bb423f0ab50ec0a3e9af7c6cf012f126e4f176"
+      }
     },
     {
       "source_repository": "supreme33-kr/fds-msa",

@@ -84,7 +84,7 @@ data:
           "id": 3, "type": "stat", "title": "fds ns 파드 수 (정상 9)",
           "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "targets": [ { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "count(kube_pod_info{namespace=\"fds\"})" } ],
+          "targets": [ { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "count(kube_pod_info{namespace=\"fds-app\"})" } ],
           "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" }, { "value": 10, "color": "red" } ] }, "color": { "mode": "thresholds" } }, "overrides": [] },
           "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" }
         },
@@ -148,8 +148,8 @@ data:
           "gridPos": { "h": 7, "w": 24, "x": 0, "y": 27 },
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "targets": [
-            { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "kube_deployment_status_replicas_available{namespace=\"fds\"}", "legendFormat": "{{deployment}} avail" },
-            { "refId": "B", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "kube_deployment_spec_replicas{namespace=\"fds\"}", "legendFormat": "{{deployment}} desired" }
+            { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "kube_deployment_status_replicas_available{namespace=\"fds-app\"}", "legendFormat": "{{deployment}} avail" },
+            { "refId": "B", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "kube_deployment_spec_replicas{namespace=\"fds-app\"}", "legendFormat": "{{deployment}} desired" }
           ],
           "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "lineInterpolation": "stepAfter", "fillOpacity": 8 }, "unit": "short", "min": 0 }, "overrides": [] },
           "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull"] }, "tooltip": { "mode": "multi" } }
@@ -252,9 +252,9 @@ data:
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "targets": [
             { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
-              "expr": "kube_deployment_status_replicas_available{namespace=\"fds\"}", "legendFormat": "{{deployment}} avail" },
+              "expr": "kube_deployment_status_replicas_available{namespace=\"fds-app\"}", "legendFormat": "{{deployment}} avail" },
             { "refId": "B", "datasource": { "type": "prometheus", "uid": "prometheus" },
-              "expr": "kube_deployment_spec_replicas{namespace=\"fds\"}", "legendFormat": "{{deployment}} desired" }
+              "expr": "kube_deployment_spec_replicas{namespace=\"fds-app\"}", "legendFormat": "{{deployment}} desired" }
           ],
           "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "lineInterpolation": "stepAfter", "fillOpacity": 8 }, "unit": "short", "min": 0 }, "overrides": [] },
           "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull"] }, "tooltip": { "mode": "multi" } }
@@ -267,7 +267,7 @@ data:
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "targets": [
             { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
-              "expr": "sum by (pod) (kube_pod_container_status_restarts_total{namespace=\"fds\"})", "legendFormat": "{{pod}}" }
+              "expr": "sum by (pod) (kube_pod_container_status_restarts_total{namespace=\"fds-app\"})", "legendFormat": "{{pod}}" }
           ],
           "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 8 }, "unit": "short" }, "overrides": [] },
           "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
@@ -280,7 +280,7 @@ data:
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "targets": [
             { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
-              "expr": "count(kube_pod_info{namespace=\"fds\"})" }
+              "expr": "count(kube_pod_info{namespace=\"fds-app\"})" }
           ],
           "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [ { "value": null, "color": "green" }, { "value": 10, "color": "red" } ] }, "color": { "mode": "thresholds" } }, "overrides": [] },
           "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" }
@@ -293,7 +293,7 @@ data:
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "targets": [
             { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
-              "expr": "kube_pod_info{namespace=~\"fds|monitoring-api\"}", "format": "table", "instant": true }
+              "expr": "kube_pod_info{namespace=~\"fds-app|monitoring-api\"}", "format": "table", "instant": true }
           ],
           "fieldConfig": { "defaults": {}, "overrides": [] },
           "options": { "showHeader": true }

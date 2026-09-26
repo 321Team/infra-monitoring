@@ -16,6 +16,12 @@ data:
         - static_configs:
             - targets: ['alertmanager.monitoring-api.svc.cluster.local:9093']
     scrape_configs:
+      # #17 AC "Prometheus self Target UP": Prometheus 자기 지표. 같은 Pod의 loopback이라
+      # NetworkPolicy·host GNP 영향이 없다.
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+
       # transaction-api / fds-engine : 파드 단위(headless Service + dns_sd, headless-services.yaml)
       # 스크레이프로 전환 완료(2026-09-21, E-CANON). replica 3 라운드로빈에 의한 카운터 리셋
       # 오인(increase()/rate() 영구 부풀음)을 피한다 — E-K3S 에서는 pod→비Service 경로가

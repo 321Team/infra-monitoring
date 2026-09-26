@@ -59,6 +59,12 @@ spec:
           mountPath: /etc/alertmanager
         - name: storage
           mountPath: /alertmanager
+        # CR-P1-MON-01-02(#75): Discord webhook URL은 Secret 파일로만 참조한다(평문 저장 금지, D33 예외 — D-ID 등록 대기).
+        # subPath를 쓰지 않는다 — Secret 갱신이 볼륨으로 전파되고, v0.34.1 Discord notifier가
+        # 알림마다 webhook_url_file을 다시 읽는다(docs/ALERTMANAGER_SECRET_LIFECYCLE_REVIEW_20260924.md).
+        - name: discord-webhook
+          mountPath: /etc/alertmanager/secrets/discord
+          readOnly: true
       volumes:
       - name: config
         configMap:
@@ -68,6 +74,10 @@ spec:
         # emptyDir → PVC 이전: 재시작 시 silence/notification 상태 유실 방지.
         persistentVolumeClaim:
           claimName: alertmanager-data
+      - name: discord-webhook
+        # Secret(key=webhook_url)은 #75 Lead가 저장소 밖에서 생성·회전한다. 값·YAML을 커밋하지 않는다.
+        secret:
+          secretName: discord-webhook
 ---
 apiVersion: v1
 kind: Service
