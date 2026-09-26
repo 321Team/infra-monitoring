@@ -18,18 +18,22 @@ data:
       resolve_timeout: 5m
 
     route:
-      receiver: 'discord-notifications'   # #75: screen-only → discord-notifications
+      # 기본은 화면 표시만. Discord는 severity=critical과 FDSDetectionBurst(이상거래 급증)만 보낸다(P1-MON-01 Lead 결정, #75).
+      receiver: 'screen-only'
       # alertname + severity 로 묶어서 UI 한 줄로 본다
       group_by: ['alertname', 'severity']
       group_wait: 10s
       group_interval: 30s
       repeat_interval: 1h
       routes:
-        # 시연 중 노이즈가 큰 known-issue 는 별도 그룹으로만 분리(억제하지는 않음 — 정직 표기)
+        # Discord 대상: critical(현재 룰 기준 TargetDown)과 업무 알림 FDSDetectionBurst(warning).
+        # 그 밖의 warning·info(NodeExporterDown·KubeletScrapeDown known-issue, p0 시험 알림 포함)는 기본 receiver(screen-only).
         - matchers:
-            - alertname = "NodeExporterDown"
-          receiver: 'screen-only'
-          group_wait: 0s
+            - severity = "critical"
+          receiver: 'discord-notifications'
+        - matchers:
+            - alertname = "FDSDetectionBurst"
+          receiver: 'discord-notifications'
 
     # 같은 alertname 에 대해 critical 이 firing 이면 warning 은 UI에서 억제
     inhibit_rules:
