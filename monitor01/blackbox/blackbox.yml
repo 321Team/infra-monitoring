@@ -1,0 +1,6 @@
+# IF-06A: monitor01(.30) -> API LB 10.1.93.109:6443 TCP connect probe.
+# edge01 HTTPS(.50:443)는 edge01에 443 서비스가 없어 이번 범위에서 제외(#17 2026-09-26 기록).
+modules:
+  tcp_connect:
+    prober: tcp
+    timeout: 5s
