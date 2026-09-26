@@ -24,3 +24,7 @@
 저장소 루트에서 `python tools/verify_migration.py`를 실행한다. 종료 0은 이관 파일의 hash 일치만 의미한다. `docs/VALIDATION.md`에서 구문·unit/mock 및 미실행 범위를 확인한다. 이 검증기는 초기 이관 commit에 대한 도구이며 이후 의도된 구현 변경을 옛 snapshot에 맞추라고 요구하는 영구 CI gate가 아니다.
 
 독립 승인·병합 후 새 merge SHA를 고정하여 CI 소스·배포 키트·문서 참조 변경 PR을 준비한다. 원본 정리/삭제는 그 이후 별도 승인으로 처리한다. 전환 전에는 기존 승인 source pin이 계속 유효하다. 이번 이관은 Runtime 인수·업무 계약 승인·정본 발행·티켓 종결을 대체하지 않는다.
+
+## 이관 후 변경 기록
+
+- 2026-09-26: `references/e-k3s/scripts/demo/s8_target_down.sh`가 [PR #12](https://github.com/321Team/infra-monitoring/pull/12)(커밋 `b330f9a`, merge `72e952c`)의 H03 수정으로 바뀌었다. `MIGRATION_MANIFEST.json`의 해당 항목에 새 destination hash와 `post_migration_change`(변경 커밋·사유·이전 hash)를 기록했다. source 필드(원본 repository/commit/blob/SHA256)는 이관 당시 값 그대로다.
