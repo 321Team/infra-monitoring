@@ -37,15 +37,17 @@ spec:
               type: RuntimeDefault
             capabilities:
               drop: ["ALL"]
+          # #17 보조통제: kube-state-metrics v2.13.0 공식 예제(examples/standard/deployment.yaml)와 같이
+          # Liveness는 /livez(http-metrics 8080), Readiness는 /readyz(telemetry 8081)를 쓴다.
           readinessProbe:
             httpGet:
-              path: /healthz
-              port: 8080
+              path: /readyz
+              port: telemetry
             periodSeconds: 5
           livenessProbe:
             httpGet:
-              path: /healthz
-              port: 8080
+              path: /livez
+              port: http-metrics
             periodSeconds: 10
 ---
 apiVersion: v1
