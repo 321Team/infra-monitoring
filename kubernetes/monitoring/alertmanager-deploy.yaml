@@ -17,6 +17,7 @@ spec:
     spec:
       imagePullSecrets:
         - name: harbor-pull-secret
+      serviceAccountName: alertmanager-sa   # 2026-09-27 전용 SA(monitoring-api-serviceaccounts.yaml)
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true

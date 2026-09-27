@@ -33,6 +33,7 @@ spec:
     spec:
       imagePullSecrets:
         - name: harbor-pull-secret
+      serviceAccountName: grafana-sa   # 2026-09-27 전용 SA(monitoring-api-serviceaccounts.yaml)
       automountServiceAccountToken: false   # GWONUK 리뷰 비차단#3(PR #4): K8s API 호출 안 함
       securityContext:
         runAsNonRoot: true

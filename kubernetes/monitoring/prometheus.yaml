@@ -123,7 +123,7 @@ spec:
       imagePullSecrets:
         - name: harbor-pull-secret
       # A4: kubelet scrape 인증용. default SA 로는 nodes/metrics 권한이 없다.
-      serviceAccountName: prometheus
+      serviceAccountName: prometheus-sa   # 2026-09-27 baseline 명세 SA(prometheus-rbac.yaml)
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534   # OPEN(#17): Harbor 승인 digest 확정 후 실제 native UID로 재확정 필요
