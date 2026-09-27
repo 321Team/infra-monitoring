@@ -1,38 +1,39 @@
-# A4 보조 — Prometheus 가 kubelet(10250) /metrics 를 스크레이프하기 위한 최소 RBAC.
-# [BL] §8 "RBAC / Namespace-scoped ServiceAccount" 원칙에 맞춰 nodes 리소스는 get 만.
-# 신규 통제가 아니라, 이미 P0(§11.6-1 kubelet scrape)인 관측 대상을 배포하기 위한 권한.
+# A4 보조 — Prometheus 가 kubelet(10250) /metrics·/metrics/cadvisor 를 스크레이프하기 위한 최소 RBAC.
+# 2026-09-27 baseline 명세 SA 이름으로 전환(#17 이하영 요청, MON Lead 결정):
+#   - ServiceAccount `prometheus` → `prometheus-sa`
+#   - 권한은 kubelet 인가에 필요한 `nodes/metrics` get 하나로 줄인다. kubelet 은 /metrics 와
+#     /metrics/* 요청을 `nodes/metrics` 서브리소스로 인가한다. 이 Prometheus 는 kubernetes_sd 를
+#     쓰지 않으므로(dns_sd·static 대상) nodes·pods·services·endpoints·namespaces 조회 권한은 필요 없다.
+#   - API Server /metrics 는 수집 대상이 아니므로 nonResourceURLs 도 부여하지 않는다.
+# 기존 객체 정리(현장, 적용 확인 후): SA `prometheus`, ClusterRole/Binding `prometheus-kubelet-scrape`,
+#   그리고 infra-kubernetes#7 계열 `prometheus-binding`(prometheus-sa → prometheus-role, pods/services/
+#   endpoints/namespaces/nodes list/watch)은 이 SA의 실효 권한을 넓히므로 함께 삭제한다.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: prometheus
+  name: prometheus-sa
   namespace: monitoring-api
 automountServiceAccountToken: true   # kubelet bearer_token_file 로 사용
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: prometheus-kubelet-scrape
+  name: prometheus-sa-kubelet-metrics
 rules:
-  # GWONUK 리뷰 비차단#2(PR #4): nodes/stats 제거. kubelet scrape는 /metrics·/metrics/cadvisor
-  # nonResourceURL만 쓰고 stats/summary API(nodes/stats)는 호출하지 않는다 — D34 "nodes/proxy
-  # 금지" 정신에 맞춰 실제 안 쓰는 권한은 부여하지 않는다.
   - apiGroups: [""]
-    resources:
-      - nodes
-      - nodes/metrics
-    verbs: ["get", "list", "watch"]
-  - nonResourceURLs: ["/metrics", "/metrics/cadvisor"]
+    resources: ["nodes/metrics"]
     verbs: ["get"]
+  # secrets, nodes, nodes/proxy, nodes/stats, 쓰기 Verb 는 부여하지 않는다(D-SEC-01 §4, D34).
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: prometheus-kubelet-scrape
+  name: prometheus-sa-kubelet-metrics
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: prometheus-kubelet-scrape
+  name: prometheus-sa-kubelet-metrics
 subjects:
   - kind: ServiceAccount
-    name: prometheus
+    name: prometheus-sa
     namespace: monitoring-api
