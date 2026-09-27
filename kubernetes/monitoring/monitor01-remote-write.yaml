@@ -1,0 +1,72 @@
+# IF-06B — in-cluster Prometheus → monitor01(10.250.10.30:443) heartbeat Remote Write 송신 측 구성
+# (P1-MON-01 #17, monitor01/README.md·DEPLOY_PLAN_20260929.md 후보의 sender 부분).
+#
+# 포함: 공개 Root CA ConfigMap, Prometheus egress NetworkPolicy.
+# 미포함(저장소 밖에서 생성, 값 기록 금지): Secret `monitor01-remote-write-auth`(key `password`).
+#   monitor01 nginx htpasswd(사용자 `fds-heartbeat`)와 같은 비밀번호다. 생성·재발급 책임은 #17 결정 기록을 따른다.
+#   예) kubectl -n monitoring-api create secret generic monitor01-remote-write-auth --from-file=password=<0600 임시파일>
+#       (명령행 인자에 값을 넣지 않는다. 파일 끝 줄바꿈 없이 만든다.)
+---
+# FDS Project Root CA 2026 공개 인증서(개인키 아님). SHA-256 fingerprint(DER)
+#   6a75baf4dbe03ef24cce944e616384d318f7ca919cd7bd914624b4cebac06b10
+#   = fds-project-evidence evidence/P1-MON-01/monitor01-pki-20260919/fds-root-ca.crt
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: monitor01-root-ca
+  namespace: monitoring-api
+data:
+  fds-root-ca.crt: |
+    -----BEGIN CERTIFICATE-----
+    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
+    -----END CERTIFICATE-----
+---
+# 현장에 같은 이름의 객체가 이미 있다(#14 ICR 기록 2026-09-24, 소스 없음). 적용 전 `kubectl diff`로
+# 대조하고, 허용 범위가 아래(Prometheus Pod → 10.250.10.30/32 TCP 443)보다 넓거나 다르면 중단한다.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: prometheus-remote-write-allow
+  namespace: monitoring-api
+spec:
+  podSelector:
+    matchLabels:
+      app: prometheus
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.250.10.30/32   # monitor01
+      ports:
+        - protocol: TCP
+          port: 443

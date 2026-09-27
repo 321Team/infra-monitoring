@@ -14,6 +14,13 @@ data:
   #   kubectl -n monitoring-api exec deploy/prometheus -- wget -qO- --post-data='' localhost:9090/-/reload
   alert-rules.yml: |
     groups:
+    # IF-06B heartbeat — 이 in-cluster Prometheus 에서만 평가한다. monitor01 receiver 에는 넣지 않는다
+    # (receiver 가 스스로 만들면 단절을 숨긴다). remote_write 가 이 series 만 monitor01 로 보낸다.
+    - name: fds-monitoring-heartbeat
+      interval: 15s
+      rules:
+      - record: fds_monitoring_heartbeat
+        expr: vector(1)
     - name: fds-core-observability
       rules:
 

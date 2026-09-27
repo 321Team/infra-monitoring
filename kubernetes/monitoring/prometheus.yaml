@@ -15,6 +15,25 @@ data:
       alertmanagers:
         - static_configs:
             - targets: ['alertmanager.monitoring-api.svc.cluster.local:9093']
+    # IF-06B — monitor01 외부 Watchdog 로 heartbeat 만 보낸다(monitor01/README.md sender 후보와 동일).
+    # payload 통제는 송신 측 write_relabel_configs 가 집행한다: fds_monitoring_heartbeat 외 전부 drop,
+    # __name__ 외 label 제거. monitor01 nginx 는 TLS·Basic Auth·출발지·경로만 검사한다.
+    remote_write:
+      - url: https://10.250.10.30/api/v1/write
+        follow_redirects: false
+        tls_config:
+          ca_file: /etc/prometheus/monitor01-ca/fds-root-ca.crt
+          insecure_skip_verify: false
+          min_version: TLS12
+        basic_auth:
+          username: fds-heartbeat
+          password_file: /etc/prometheus/monitor01-auth/password
+        write_relabel_configs:
+          - source_labels: [__name__]
+            regex: fds_monitoring_heartbeat
+            action: keep
+          - regex: __name__
+            action: labelkeep
     scrape_configs:
       # #17 AC "Prometheus self Target UP": Prometheus 자기 지표. 같은 Pod의 loopback이라
       # NetworkPolicy·host GNP 영향이 없다.
@@ -174,6 +193,12 @@ spec:
               mountPath: /etc/prometheus/rules-p0/
             - name: alert-rules-optional
               mountPath: /etc/prometheus/rules-opt/
+            - name: monitor01-root-ca          # IF-06B TLS 검증용 공개 Root CA
+              mountPath: /etc/prometheus/monitor01-ca
+              readOnly: true
+            - name: monitor01-remote-write-auth   # IF-06B Basic Auth 비밀번호(Secret, 저장소 밖 생성)
+              mountPath: /etc/prometheus/monitor01-auth
+              readOnly: true
       volumes:
         - name: config
           configMap:
@@ -194,6 +219,13 @@ spec:
           configMap:
             name: prometheus-alert-rules-optional
             optional: true          # 없어도 기동 (E-K3S 는 이 CM 을 적용하지 않음)
+        - name: monitor01-root-ca
+          configMap:
+            name: monitor01-root-ca
+        - name: monitor01-remote-write-auth
+          secret:
+            secretName: monitor01-remote-write-auth
+            defaultMode: 0440      # fsGroup 으로 Prometheus 사용자만 읽기. optional 아님 — Secret 먼저 생성
 ---
 apiVersion: v1
 kind: Service
