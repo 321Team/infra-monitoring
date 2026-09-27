@@ -47,6 +47,17 @@ spec:
               path: /metrics
               port: 9100
             periodSeconds: 10
+          # #17 보조통제 "각 Monitoring Component 공식 Probe": prometheus-community node-exporter
+          # 차트처럼 liveness 를 둔다. /metrics 전체 수집보다 가벼운 루트 경로(/)를 쓰고, 노드 부하
+          # 순간 지연으로 재시작하지 않도록 timeout 5s·3회 연속 실패 기준을 둔다.
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9100
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
       volumes:
         - name: rootfs
           hostPath:
