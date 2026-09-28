@@ -11,7 +11,7 @@
 | Blackbox | `127.0.0.1:9115`, 설정 `/etc/fds/monitor01/blackbox` | localhost 전용 |
 | TLS | leaf는 `/etc/fds/monitor01/tls/monitor01.crt`로 복사(공개 인증서). key는 기존 위치 `/etc/fds/pki/monitor01/request/monitor01.key`를 옮기지 않는다 | 키 반출·복사 금지 |
 | Basic Auth | 사용자 `fds-heartbeat`. monitor01 `htpasswd`와 클러스터 Secret은 서버에서 생성하고, 값은 기록하지 않는다 | |
-| `source_ipv4` | **비움.** 9/30 실측 후 채운다 | README 원칙: 추정 입력 금지 |
+| `source_ipv4` | **`10.1.93.108`** | 2026-09-28 IF-06B 동기 tcpdump에서 worker03 source 보존 및 monitor01 ingress까지 실측. 추정값이 아니라 Runtime 관측값 |
 
 ## 이미지 (NOT RUN)
 - receiver: `10.1.93.54/fds/prometheus@sha256:b77f9cee82fd1c61521634d2d6b192fc526ffd938e904b8e6836b6c0cf8d875a`(클러스터와 같은 digest)
@@ -48,7 +48,7 @@
 ## 9/30(수) — sender 연결과 출발지 실측 (ICR 공동)
 1. 클러스터 Secret 2개를 만든다(값 비기록). CA는 공개 인증서, auth password는 monitor01 htpasswd와 짝을 맞춘다.
 2. `sender.remote-write.fragment.json`과 `sender.heartbeat.rules.json`을 in-cluster Prometheus에 반영한다. 별도 코드 PR로 독립 리뷰를 받는다.
-3. monitor01에서 `tcpdump -ni ens160 tcp port 443`으로 실제 SYN 출발지를 관측한다(ICR 입회). 그 값을 `source_ipv4`에 넣고 `render_candidate.py`로 nginx 설정을 생성한다.
+3. **출발지 실측은 2026-09-28 조기 완료했다.** monitor01 `ens160`에서 `10.1.93.108:* -> 10.250.10.30:443 SYN`을 반복 관측했고, mgmt-gw01에서도 ens160 In → ens224 Out 동일 source 보존을 확인했다. `source_ipv4=10.1.93.108`을 사용해 `render_candidate.py`로 nginx 설정을 생성한다.
 4. monitor01 firewalld에 **관측 출발지 /32 → 443만** rich rule로 허용하고, nginx를 기동한다.
 
 ## 10/1(목) — 인수 시험 (README 표 기준)
