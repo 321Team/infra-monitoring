@@ -30,7 +30,7 @@ CSR SHA256: `37fda6d9fb99f101bf213a8e6a070c3e6dce3ba5238b54f178d9c62c8ddd3fa1`.
 
 | 아직 필요한 실제 입력 | 확정·확인 범위 |
 |---|---|
-| IF-06B 실제 송신 Source IPv4 및 반환 경로 | K8S/Network·MON 공동 실측. Worker 주소나 Pod CIDR로 추정하지 않음 |
+| IF-06B 실제 송신 Source IPv4 및 반환 경로 | **실측 완료:** `10.1.93.108/32`. 2026-09-28 mgmt-gw01 ens160 In → ens224 Out 및 monitor01 ens160 ingress에서 동일 source를 확인했고 내부 SNAT 없음. Gateway permanent policy `if06b-p2m` 적용 후 재검증 PASS |
 | receiver 로컬 port, 설정·data 경로/용량, 실행 모델 | MON Lead. 예전 관측의 Cockpit 9090을 중지하지 않음. 9090과 Blackbox 9115는 후보 입력에서 제외 |
 | NGINX/Prometheus 승인 버전·Harbor digest·취약점 결과 | MON/HBR 인계. latest 및 미확인 digest를 작성하지 않음 |
 | Basic Auth 사용자명, proxy 암호 파일, sender Secret mount·Root mount | MON/SEC. 입력 파일에는 비밀번호·hash를 넣지 않고 경로만 기록 |
