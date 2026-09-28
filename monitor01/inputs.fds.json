@@ -1,7 +1,7 @@
 {
   "schema": "fds.monitor01-tls-candidate.v1",
   "receiver_port": 19090,
-  "source_ipv4": [],
+  "source_ipv4": ["10.1.93.108"],
   "leaf_file": "/etc/fds/monitor01/tls/monitor01.crt",
   "key_file": "/etc/fds/pki/monitor01/request/monitor01.key",
   "root_file_on_sender": "/etc/prometheus/monitor01-ca/fds-root-ca.crt",
