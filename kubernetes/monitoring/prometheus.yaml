@@ -158,6 +158,17 @@ spec:
             - "--storage.tsdb.retention.size=16GB"   # Storage 인계 결정(#17): PVC 20Gi 중 여유 확보
           ports:
             - containerPort: 9090
+          # #17 핵심 요구 "PVC와 Resource Request/Limit을 정의한다"(2026-09-29). 관측 9/26 23:47~9/29 18:25 KST:
+          # CPU p95 8.4m·최대 31.5m, working set 최대 367.5MiB, throttling 최대 16.3%, 재시작 0.
+          # #15 결정안 v2 식(CPU req=p95×1.5·lim=최대×2, 메모리 req=최대×1.2·lim=req×2)에
+          # LimitRange 기본값(200m/256Mi·500m/512Mi)을 하한으로 적용. 근거 archive SHA-256 6f0c4c0d….
+          resources:
+            requests:
+              cpu: 200m
+              memory: 448Mi
+            limits:
+              cpu: 500m
+              memory: 896Mi
           # #17 AC: 컴포넌트 공식 Probe. TSDB/WAL 이 커지면 기동이 느려지므로 startup 유예를 크게 잡고,
           # liveness 는 그 뒤에만 동작 — 재시작 후 WAL replay 중 liveness 가 죽이는 루프를 방지한다.
           startupProbe:

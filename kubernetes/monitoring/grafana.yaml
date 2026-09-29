@@ -96,13 +96,16 @@ spec:
               value: "true"
           # monitoring-api-default-limits LimitRange 기본값(512Mi)이 부족해서
           # OOMKilled(exit 137) 반복 발생(2026-09-22 실측) — 명시적으로 상향.
+          # 2026-09-29 재산정: 관측 9/26 23:47~9/29 18:25 KST working set 최대 916.3MiB(1Gi의 89%),
+          # CPU p95 8.1m·최대 37.1m. #15 결정안 v2 식으로 메모리 request 1152Mi·limit 2304Mi,
+          # CPU는 식 결과(100m/100m)가 현재 값보다 작아 200m/1을 유지.
           resources:
             requests:
               cpu: 200m
-              memory: 256Mi
+              memory: 1152Mi
             limits:
               cpu: "1"
-              memory: 1Gi
+              memory: 2304Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
