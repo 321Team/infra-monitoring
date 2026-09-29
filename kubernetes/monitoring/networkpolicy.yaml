@@ -2,33 +2,18 @@
 # transaction-api/fds-engine 은 fds-app ns 에 위치한다. Cross-namespace 트래픽이므로
 # namespaceSelector 를 podSelector 와 함께 명시해야 한다(같은 namespace 라고 가정하면
 # NetworkPolicy 는 기본적으로 자기 namespace 안의 pod만 매치한다).
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-monitoring-scrape
-  namespace: fds-app
-spec:
-  podSelector:
-    matchExpressions:
-      - key: app
-        operator: In
-        values: ["transaction-api", "fds-engine"]
-  policyTypes:
-    - Ingress
-  ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: monitoring-api
-          podSelector:
-            matchLabels:
-              app: prometheus
-      ports:
-        - protocol: TCP
-          port: 9091   # transaction-api dedicated metrics
-        - protocol: TCP
-          port: 9090   # fds-engine dedicated metrics
----
+#
+# 2026-09-29 정리(#17 핵심 요구 "Default Deny 이후 필요한 Scrape, Datasource, Alert,
+# Remote Write 경로만 허용한다"):
+#   - fds-app `allow-monitoring-scrape` 제거: fds-app 앱 ingress는 infra-kubernetes
+#     `manifests/03-networkpolicy.yaml`의 `transaction-api-allow`(Prometheus→9091)·
+#     `fds-engine-allow`(Prometheus→9090)가 정확한 포트로 이미 허용한다. 이 객체는 두 앱에
+#     두 포트를 모두 열어 더 넓었다. 현장 객체는 적용 단계에서 삭제한다.
+#   - `allow-prometheus-egress-scrape`: 앱별 metrics 포트만(transaction-api:9091, fds-engine:9090).
+#     현장 객체는 2026-09-22 생성본 그대로 옛 namespace `fds`를 가리키고 있어 적용 단계에서 교체한다.
+#   - `allow-prometheus-egress-node-exporter`: node-exporter가 실제로 뜨는 Worker 3대로 좁힘.
+#   - `allow-monitoring-egress-dns` 제거: kube-system 모든 Pod로 53을 허용해 넓었다.
+#     DNS는 `monitoring-api-dns-allow.yaml`(kube-system `k8s-app: kube-dns` 한정)이 계속 허용한다.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -46,13 +31,19 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: fds-app
           podSelector:
-            matchExpressions:
-              - key: app
-                operator: In
-                values: ["transaction-api", "fds-engine"]
+            matchLabels:
+              app: transaction-api
       ports:
         - protocol: TCP
           port: 9091   # transaction-api dedicated metrics
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: fds-app
+          podSelector:
+            matchLabels:
+              app: fds-engine
+      ports:
         - protocol: TCP
           port: 9090   # fds-engine dedicated metrics
 ---
@@ -70,18 +61,10 @@ spec:
   egress:
     # node-exporter 는 monitoring-node ns 의 DaemonSet 이지만 hostNetwork: true 라
     # podSelector/namespaceSelector 로 매치되지 않는다 — NetworkPolicy 상 ipBlock 필수.
-    # ⚠️ ASSUMPTION(정본 미검증): FDS_VM_Setup_Guideline_v3.1.1.md 의 6-node IP를 전부
-    # 넣었다. node-exporter DaemonSet에 Control Plane taint toleration이 없으면 CP 3대
-    # (.102~.104)에는 실제로 스케줄되지 않아 이 3개 egress는 그냥 안 쓰인다(과다 허용,
-    # 무해). kubectl get pods -n monitoring-node -o wide 로 실제 스케줄 노드를 확인해
-    # 필요시 좁혀도 된다.
+    # DaemonSet에 Control Plane toleration이 없어 Worker 3대에만 뜬다(node-exporter Target 3개,
+    # .105/.107/.108). 그래서 CP 3대(.102~.104)는 넣지 않는다. kubelet(10250)은 6노드 모두라
+    # allow-prometheus-egress-kubelet.yaml에서 따로 허용한다.
     - to:
-        - ipBlock:
-            cidr: 10.1.93.102/32   # k8s-control01
-        - ipBlock:
-            cidr: 10.1.93.103/32   # k8s-control02
-        - ipBlock:
-            cidr: 10.1.93.104/32   # k8s-control03
         - ipBlock:
             cidr: 10.1.93.105/32   # k8s-worker01
         - ipBlock:
@@ -112,6 +95,7 @@ spec:
         - protocol: TCP
           port: 9090
 ---
+# 이름과 달리 Prometheus Pod의 ingress(Grafana → 9090)다. 현장 객체 이름을 유지하려고 바꾸지 않는다.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -145,31 +129,6 @@ spec:
   policyTypes:
     - Ingress
     - Egress
----
-# GWONUK 리뷰 B2(PR #4) 대응: default-deny-all이 DNS(kube-system CoreDNS 53)까지 막아
-# dns_sd_configs(transaction-api/fds-engine 파드 단위 스크레이프)와 Grafana의
-# `http://prometheus:9090` 이름 해석이 전부 실패한다. monitoring-api 전체 pod에 DNS egress
-# 허용. 네임스페이스 셀렉터만 쓰고 podSelector(k8s-app=kube-dns 등)를 안 건 이유: CoreDNS
-# pod 라벨은 배포 방식(kubeadm/kops/managed)마다 달라 잘못 좁히면 또 막힐 위험이 큼.
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-monitoring-egress-dns
-  namespace: monitoring-api
-spec:
-  podSelector: {}
-  policyTypes:
-    - Egress
-  egress:
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

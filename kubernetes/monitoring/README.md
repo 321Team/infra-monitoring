@@ -56,8 +56,10 @@ references를 정본 배포 입력으로 사용하지 않는다"고 규정한 �
 이 디렉터리는 자기 완결적이지 않다 — 적용 전 순서·전제:
 
 1. `fds-app` namespace와 그 안의 `transaction-api`/`fds-engine` 앱 pod가 이미 떠 있어야 한다.
-   `headless-services.yaml`(파드 IP 노출)과 `networkpolicy.yaml`의 `allow-monitoring-scrape`
-   (fds-app ns에 위치, monitoring-api로부터의 ingress 허용)는 앱이 존재한다는 전제다.
+   `headless-services.yaml`(파드 IP 노출)은 앱이 존재한다는 전제다. 앱 Pod의 Prometheus
+   ingress(9091/9090)는 infra-kubernetes `manifests/03-networkpolicy.yaml`의
+   `transaction-api-allow`·`fds-engine-allow`가 허용한다(2026-09-29 정리로 이 디렉터리의
+   fds-app `allow-monitoring-scrape`는 제거).
 2. 이 디렉터리 안에서는 `namespaces.yaml` → `rbac-kube-state-metrics.yaml`/`prometheus-rbac.yaml`
    → `pv-monitoring-storage.yaml`(PV/PVC) → 나머지(Deployment/DaemonSet/NetworkPolicy) 순서를
    권장한다. `kubectl apply -f kubernetes/monitoring/`로 한 번에 적용해도 K8s가 참조를 재시도해

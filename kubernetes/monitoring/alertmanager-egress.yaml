@@ -10,7 +10,8 @@
 #   kube-dns 한정, 이 디렉터리 monitoring-api-dns-allow.yaml)가 모든 Pod에
 #   허용하므로 이 규칙은 중복이면서 더 넓다. NetworkPolicy 허용은 합집합이라
 #   이 규칙을 제거해도 Alertmanager의 kube-system DNS 조회는 유지된다.
-#   (networkpolicy.yaml의 `allow-monitoring-egress-dns`도 kube-system 전체 Pod로 53을 허용한다.)
+#   (networkpolicy.yaml의 `allow-monitoring-egress-dns`는 kube-system 전체 Pod로 53을 허용했으나
+#   2026-09-29 정리에서 제거했다. 이후 DNS는 monitoring-api-dns-allow만 허용한다.)
 #
 # 경로: Alertmanager -> egress-proxy01(10.1.93.56:3128) -> discord.com:443 (CONNECT)
 #   Squid allowlist가 discord.com만 허용한다(infra-ansible roles/egress_proxy).
