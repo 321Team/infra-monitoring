@@ -32,6 +32,15 @@ spec:
         - --storage.path=/alertmanager
         ports:
         - containerPort: 9093
+        # #17 Resource 명시(2026-09-29). 관측 CPU 최대 2.6m, working set 최대 51.4MiB, 재시작 0.
+        # #15 결정안 v2 식 결과(100m/64Mi·100m/128Mi)가 LimitRange 기본값보다 작아 기본값을 명시값으로 둔다.
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
         # #17 AC: 컴포넌트 공식 Probe. startup 이 통과할 때까지 liveness/readiness 는 시작되지 않는다.
         startupProbe:
           httpGet: { path: /-/ready, port: 9093 }

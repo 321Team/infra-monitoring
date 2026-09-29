@@ -1,5 +1,18 @@
 # E-CANON monitoring-api/monitoring-node 배포 후보
 
+## 2026-09-29 Resource·PVC 정의 (#17 핵심 요구 3절)
+
+| 구성요소 | PVC (소스 파일) | 현장 PVC | requests (CPU / 메모리) | limits (CPU / 메모리) | 관측 최대 (CPU / working set) |
+|---|---|---|---|---|---|
+| Prometheus | `prometheus-data` 20Gi (`pv-monitoring-storage.yaml`) | Bound | 200m / 448Mi | 500m / 896Mi | 31.5m / 367.5MiB |
+| Alertmanager | `alertmanager-data` 2Gi (`pv-monitoring-storage.yaml`) | Bound | 200m / 256Mi | 500m / 512Mi | 2.6m / 51.4MiB |
+| Grafana | `grafana-data` 5Gi (`grafana-dashboards.yaml`) | Bound | 200m / 256Mi | 1 / 1Gi | 37.1m / 916.3MiB |
+
+- 관측: 2026-09-26 23:47 ~ 09-29 18:25 KST(약 66.6시간), `job="kubelet-cadvisor"`. control01 수집 archive `p1-mon-res-20260929T182518.tgz` SHA-256 `6f0c4c0d50879cf2fbdb9e9b67a083e910bca38d78d4e8d78f9eb74418f32d0d`(서버 원본 보존, 증적 편입 예정).
+- 산식: #15 결정안 v2 §6(프로젝트 내부 기준) — CPU request = p95 × 1.5(50m 올림, 최소 100m), CPU limit = 최대 × 2(100m 올림), 메모리 request = 최대 × 1.2(64Mi 올림), 메모리 limit = request × 2. 현재 적용 중인 값보다 낮추지 않는다.
+- PVC 사용률: 세 PVC는 worker03 `/home` 한 파일시스템 위의 local PV라 `kubelet_volume_stats_*`가 파일시스템 전체(9/29 사용 4.3GiB / 166GiB)를 보여 준다. PVC별 사용량은 worker03 `du` 또는 `prometheus_tsdb_storage_blocks_bytes`(9/29 762MiB)로 본다.
+- 현장 반영: 병합은 적용이 아니다. 세 Deployment 모두 `:latest`·imagePullPolicy Always라 재시작하면 이미지를 다시 받는다. [G3 원칙](https://github.com/321Team/fds-project-baseline/issues/17#issuecomment-5885874627)대로 승인 digest 고정과 같은 재시작 창에서 반영하고, 그 전에 반영하려면 "현장 imageID = Harbor `latest` digest" 확인 조건으로 G3 확인을 먼저 받는다.
+
 ## 2026-09-23 저장소 정합성 보완
 
 [E-CANON PR #4](https://github.com/321Team/infra-monitoring/pull/4)는 9/21 병합됐고, [MON Lead의 9/22 실행 보고](https://github.com/321Team/fds-project-baseline/issues/17#issuecomment-5772337466)에서 monitoring-api/monitoring-node 실제 배포와 앱 namespace를 `fds-app`으로 현장 수정한 사실을 확인했다. 아래의 PR 미병합/NOT_DEPLOYED 표현은 최초 작성 당시 이력이다.
