@@ -7,9 +7,10 @@
 # 역할: monitoring-api의 모든 Pod가 kube-system의 CoreDNS(`k8s-app: kube-dns`)에만
 #   UDP/TCP 53으로 나갈 수 있게 한다. `alertmanager-egress`에서 넓은 DNS 규칙을 뺀 근거다.
 #
-# 겹치는 정책: networkpolicy.yaml의 `allow-monitoring-egress-dns`(2026-09-22T05:45:35Z 현장 적용)는
-#   같은 Pod에 kube-system의 **모든 Pod**로 53을 허용해 이 정책보다 넓다. NetworkPolicy 허용은
-#   합집합이므로 현재 실효 DNS 범위는 그쪽이다. 어느 쪽을 남길지는 별도 결정 — 이 파일은 현장 기록만 한다.
+# 겹치던 정책: networkpolicy.yaml의 `allow-monitoring-egress-dns`(2026-09-22T05:45:35Z 현장 적용)는
+#   같은 Pod에 kube-system의 **모든 Pod**로 53을 허용해 이 정책보다 넓었다. 2026-09-29 정리에서
+#   소스에서 뺐고 현장 객체는 적용 단계에서 삭제한다. 이후 monitoring-api의 DNS egress는 이 정책만 허용한다.
+#   같은 이름·spec이 infra-kubernetes `manifests/03-networkpolicy.yaml`에도 있다(중복 정의, 현장 객체는 1개).
 #
 # 적용: 현장과 spec이 같아 `kubectl diff` 결과는 무변경이어야 한다. 병합은 적용이 아니다.
 
