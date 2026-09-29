@@ -6,7 +6,7 @@
 |---|---|---|---|---|---|
 | Prometheus | `prometheus-data` 20Gi (`pv-monitoring-storage.yaml`) | Bound | 200m / 448Mi | 500m / 896Mi | 31.5m / 367.5MiB |
 | Alertmanager | `alertmanager-data` 2Gi (`pv-monitoring-storage.yaml`) | Bound | 200m / 256Mi | 500m / 512Mi | 2.6m / 51.4MiB |
-| Grafana | `grafana-data` 5Gi (`grafana-dashboards.yaml`) | Bound | 200m / 256Mi | 1 / 1Gi | 37.1m / 916.3MiB |
+| Grafana | `grafana-data` 5Gi (`grafana-dashboards.yaml`) | Bound | 200m / 1152Mi (이전 256Mi) | 1 / 2304Mi (이전 1Gi) | 37.1m / 916.3MiB |
 
 - 관측: 2026-09-26 23:47 ~ 09-29 18:25 KST(약 66.6시간), `job="kubelet-cadvisor"`. control01 수집 archive `p1-mon-res-20260929T182518.tgz` SHA-256 `6f0c4c0d50879cf2fbdb9e9b67a083e910bca38d78d4e8d78f9eb74418f32d0d`(서버 원본 보존, 증적 편입 예정).
 - 산식: #15 결정안 v2 §6(프로젝트 내부 기준) — CPU request = p95 × 1.5(50m 올림, 최소 100m), CPU limit = 최대 × 2(100m 올림), 메모리 request = 최대 × 1.2(64Mi 올림), 메모리 limit = request × 2. 현재 적용 중인 값보다 낮추지 않는다.
