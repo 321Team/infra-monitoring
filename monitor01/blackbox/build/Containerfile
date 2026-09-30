@@ -1,0 +1,19 @@
+# monitor01 blackbox-exporter — upstream master 065fc188 소스 빌드. 입력·출처·절차는 BUILD.md.
+# 모든 base 이미지는 digest로 고정한다(9/27 monitor01 빌드와 같은 입력).
+FROM docker.io/library/golang@sha256:54b6b88db6fe375c6676625d87d668273f85c6d09153635d0cbba89cba7a207a AS build
+WORKDIR /src
+COPY src/ ./
+# go.sum 검증(-mod=readonly), 다른 Go toolchain 자동 다운로드 금지(GOTOOLCHAIN=local), 정적 바이너리.
+ENV CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS=-mod=readonly
+RUN go version \
+ && go build -trimpath \
+      -ldflags "-X github.com/prometheus/common/version.Version=0.28.0-master.065fc18 -X github.com/prometheus/common/version.Revision=065fc188bd7609e41d9e28039dc4ee2cde5d5d74 -X github.com/prometheus/common/version.Branch=master" \
+      -o /out/blackbox_exporter . \
+ && /out/blackbox_exporter --version
+
+FROM cgr.dev/chainguard/static@sha256:c5fed92d0fda728930795cafb61192d8abc9e2f606b22996b212e0169f1d42e6
+COPY --from=build /out/blackbox_exporter /bin/blackbox_exporter
+USER 65532:65532
+EXPOSE 9115
+ENTRYPOINT ["/bin/blackbox_exporter"]
+CMD ["--config.file=/etc/blackbox_exporter/config.yml"]
