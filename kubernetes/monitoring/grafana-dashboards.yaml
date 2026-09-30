@@ -36,7 +36,9 @@ data:
         folder: 'FDS'
         type: file
         disableDeletion: false
-        allowUiUpdates: true
+        # 2026-09-30: #17 "P0 기본 Dashboard 3종과 기본 Alert Rule을 Source 관리한다" — 화면에서 고친 내용이
+        # 저장돼 소스와 달라지지 않도록 막는다. 대시보드 변경은 이 ConfigMap(소스) PR로만 한다.
+        allowUiUpdates: false
         updateIntervalSeconds: 30
         options:
           path: /etc/grafana/dashboards

@@ -24,6 +24,18 @@ spec:
           image: 10.1.93.54/fds/node-exporter@sha256:56566542aacd5be06add01d3456cd6279e2f7ddb4b24237fc8cdfbc3cc5f699f
           args:
             - --path.rootfs=/host
+            # 2026-09-30: 정본 monitoring-node 기준 "불필요 Collector 비활성". 기본 Collector(현장 49개)를 모두 끄고
+            # node-exporter 용도(CPU/Memory/Disk/Network/NTP 관련 Node Metrics)에 맞는 8개만 켠다.
+            # Dashboard·Alert Rule·remote_write는 node_* 지표를 쓰지 않는다(up·scrape_duration_seconds만 사용).
+            - --collector.disable-defaults
+            - --collector.cpu
+            - --collector.loadavg
+            - --collector.meminfo
+            - --collector.diskstats
+            - --collector.filesystem
+            - --collector.netdev
+            - --collector.time
+            - --collector.timex
           ports:
             - containerPort: 9100
               hostPort: 9100
