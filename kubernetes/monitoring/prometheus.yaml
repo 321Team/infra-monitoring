@@ -150,7 +150,9 @@ spec:
         fsGroupChangePolicy: OnRootMismatch   # Storage 인계 결정(#17) 수용
       containers:
         - name: prometheus
-          image: 10.1.93.54/fds/prometheus:latest
+          # 2026-09-30: v3.14.0(:latest, b77f9cee…) Harbor Trivy HIGH 3 → 공식 v3.15.0으로 교체(#13 HBR 승인·Trivy 0/0,
+          # upstream docker.io/prom/prometheus:v3.15.0@sha256:86b17a25…0faa). tag가 아니라 Harbor digest로 고정한다.
+          image: 10.1.93.54/fds/prometheus@sha256:2c28708bb561e4ceadac83bd2b60054a1a5381426a13f7b12bbd1bf2a8dd2d19
           args:
             - "--config.file=/etc/prometheus/prometheus.yml"
             - "--web.enable-lifecycle"   # curl -X POST /-/reload 로 룰/설정 재적용
