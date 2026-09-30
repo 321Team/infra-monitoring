@@ -13,10 +13,13 @@
 | Basic Auth | 사용자 `fds-heartbeat`. monitor01 `htpasswd`와 클러스터 Secret은 서버에서 생성하고, 값은 기록하지 않는다 | |
 | `source_ipv4` | **`10.1.93.108`** | 2026-09-28 IF-06B 동기 tcpdump에서 worker03 source 보존 및 monitor01 ingress까지 실측. 추정값이 아니라 Runtime 관측값 |
 
-## 이미지 (NOT RUN)
-- receiver: `10.1.93.54/fds/prometheus@sha256:b77f9cee82fd1c61521634d2d6b192fc526ffd938e904b8e6836b6c0cf8d875a`(클러스터와 같은 digest)
-- blackbox-exporter, nginx: Harbor 미러링은 HBR(이하영) 승인이 필요하다(#17 요청). 승인되면 9/22와 같은 경로(ansible01 → tar → push)를 쓰고, digest를 기록한다.
-- monitor01에는 Harbor 경로가 없으므로, 같은 tar를 ansible01 → monitor01(관리망)로 `scp`한 뒤 `podman load`한다. load 후 `podman images --digests`로 digest를 대조한다.
+## 이미지 Gate (2026-09-30 갱신 / Runtime NOT RUN)
+- Harbor Runtime은 프로젝트 종료까지 **v2.13.1로 고정**한다. 2026-09-30 `--with-trivy` 재구성 후 Trivy adapter(v0.62.1) healthy/default scanner와 실제 artifact scan 성공을 확인했다. v2.15.2 업그레이드는 이번 P1-MON-01 이미지 공급 흐름에서 수행하지 않는다.
+- receiver 기존 후보 `10.1.93.54/fds/prometheus@sha256:b77f9cee82fd1c61521634d2d6b192fc526ffd938e904b8e6836b6c0cf8d875a`는 Prometheus **v3.14.0**이며 Harbor Trivy 결과 **CRITICAL=0 / HIGH=3**으로 현재 Gate를 통과하지 못했다. 삭제하지 않고 실패 증적으로 보존하며 monitor01 공급/기동에 사용하지 않는다.
+- receiver 신규 후보는 공식 `prom/prometheus:v3.15.0`이다. 태그 자체를 승인값으로 사용하지 않고 upstream immutable digest를 먼저 고정한 뒤 Harbor `fds/prometheus`로 mirror한다. Harbor에서 다시 Scan하여 **CRITICAL=0 / HIGH=0**인 정확한 Harbor digest만 승인 후보가 된다.
+- 세부 handoff와 중단 기준은 [PROMETHEUS_V315_HANDOFF_20260930.md](PROMETHEUS_V315_HANDOFF_20260930.md)를 따른다.
+- blackbox-exporter, nginx는 기존 HBR 인계 절차를 유지한다. 승인된 source/digest를 Harbor `fds/`로 mirror하고 CRITICAL/HIGH=0을 확인한 뒤 immutable digest를 기록한다.
+- monitor01에는 Harbor 경로가 없으므로, **승인 확정된 Harbor digest로 다시 pull한 tar**만 ansible01 → monitor01(관리망)로 전달하고 `podman load`한다. tar SHA256과 load 후 local image digest를 대조한다.
 
 ## 저장소 안전 실행기
 
@@ -29,7 +32,8 @@
 2. **디렉터리 준비:** 위 경로를 만들고, 데이터 디렉터리는 `65534:65534`(prometheus 이미지 사용자)로 둔다. SELinux는 볼륨 `:Z`로 처리한다. 키 디렉터리는 relabel하지 않는다.
 3. **설정 준비:** `source_ipv4=10.1.93.108`은 2026-09-28 IF-06B 동기 tcpdump 실측값을 사용한다. 첫날에는 NGINX/sender를 만들지 않는다. receiver 설정은 README의 heartbeat/watchdog + `blackbox/receiver-scrape-blackbox.json`만 합쳐 `/etc/fds/monitor01/receiver/prometheus.yml`에 두고, Blackbox 설정은 저장소 `blackbox.yml`과 byte/hash를 대조해 `/etc/fds/monitor01/blackbox/blackbox.yml`로 둔다. 실제 승인 이미지의 `promtool check config` / `check rules`를 먼저 통과해야 한다.
 4. **localhost-only 기동:** Blackbox Harbor digest가 확정된 뒤 아래 저장소 실행기만 사용한다. 임의 `podman run` 재작성은 하지 않는다.
-   - `python3 monitor01/runtime_launch_local.py start --receiver-image 10.1.93.54/fds/prometheus@sha256:b77f9cee82fd1c61521634d2d6b192fc526ffd938e904b8e6836b6c0cf8d875a --blackbox-image <approved-blackbox@sha256:...>`
+   - `python3 monitor01/runtime_launch_local.py start --receiver-image <approved-prometheus@sha256:...> --blackbox-image <approved-blackbox@sha256:...>`
+   - 기존 Prometheus v3.14.0 `b77f9cee...`는 HIGH=3이므로 이 자리의 승인 digest로 사용할 수 없다.
    - 실행기는 비-digest 이미지, 기존 동명 컨테이너, 누락 config/data, root 실행을 거부한다.
    - 성공 기준은 `ss -ltnH`에서 19090·9115가 각각 `127.0.0.1`에만 존재하는 것이다. `0.0.0.0`, `::`, 관리망 IP listen이 하나라도 보이면 실행기가 두 컨테이너를 회수하고 STOP한다.
 5. **LB Probe 시험(#17 AC "API LB TCP Probe 실패·복구")**
