@@ -29,14 +29,22 @@ monitor01 IF-06A Probe(`blackbox.yml`, `tcp_connect`)에 쓸 blackbox-exporter �
 ## 절차
 
 1. **빌드 — MON Lead, ansible01(`server01_ansible`, 인터넷 가능·Harbor 불가):** 이 폴더의 `Containerfile`·`build.sh`를 같은 폴더에 두고 `bash build.sh`
-   - 소스 tar SHA가 위 값과 다르거나, pull·build·`--version` 확인이 실패하면 멈춘다(`result.txt`에 STOP 사유).
-   - 결과: `~/bb-build-<시각>/`에 `blackbox-exporter-065fc18.tar`(docker-archive), `SHA256SUMS`, `build.log`, `build-inputs.txt`(실제 pull digest), `version.txt`, `image-id.txt`, `image-config.txt`
+   - `pipefail`로 실행한다. 소스 tar SHA가 위 값과 다르거나, pull·실제 pull digest 기록·build·`--version`·image ID/config 조회 중 하나라도 실패하면 멈춘다(`result.txt`에 STOP 사유, 근거 묶음은 만들지 않음).
+   - 결과(`~/bb-build-<시각>/`):
+     - 이미지 `blackbox-exporter-065fc18.tar`(docker-archive)
+     - 빌드 근거 파일: `Containerfile`·`build.sh`·`kit.sha256`·`meta.txt`(시각·host·user·podman 버전)·`bb-src.sha256`·`build-inputs.txt`(실제 pull digest)·`build.log`·`version.txt`·`image-id.txt`·`image-config.txt`·`result.txt`(DONE)
+     - `SHA256SUMS`: 이미지 tar·소스 tar·빌드 근거 파일 **전부**의 SHA-256
+     - **빌드 근거 묶음** `build-evidence-065fc18.tar.gz`(빌드 근거 파일 + `SHA256SUMS`)와 sidecar `build-evidence-065fc18.tar.gz.sha256`
    - 운영 서버·Harbor·monitor01은 건드리지 않는다.
-2. **Harbor 반입·검사 — HBR(이하영), 기존 미러링 절차와 같음:** tar를 control01로 옮겨 `podman load` → `10.1.93.54/fds/blackbox-exporter:0.28.0-master.065fc18-candidate-<날짜>`로 push → Harbor Trivy CRITICAL 0 / HIGH 0 확인 → Harbor digest 기록 → 승인 digest 재-pull·tar·SHA256을 ansible01에 둔다. `latest`나 기존 태그는 쓰지 않는다.
+2. **Harbor 반입·검사 — HBR(이하영), 기존 미러링 절차와 같음:**
+   - **인계물 3개:** 이미지 tar, 빌드 근거 묶음, 그 sidecar. MON Lead는 세 파일의 SHA-256을 #13에 함께 적는다.
+   - **인수 검증:** sidecar로 근거 묶음 SHA 대조 → 묶음을 풀어 `sha256sum -c SHA256SUMS`(이미지 tar를 같은 폴더에 두고. 소스 tar는 묶음에 없으므로 그 줄은 `bb-src.sha256` 값과 대조) → 이미지 tar SHA가 `SHA256SUMS`와 일치 → `podman load` 뒤 image ID가 `image-id.txt`와 일치 → `version.txt`의 revision·`build-inputs.txt`의 digest가 이 문서의 입력 표와 일치.
+   - 그 뒤 `10.1.93.54/fds/blackbox-exporter:0.28.0-master.065fc18-candidate-<날짜>`로 push → Harbor Trivy CRITICAL 0 / HIGH 0 확인 → Harbor digest 기록 → 승인 digest 재-pull·tar·SHA256을 ansible01에 둔다. `latest`나 기존 태그는 쓰지 않는다.
+   - 빌드 근거 묶음은 이미지와 같은 실행 회차의 원본으로 증적 저장소에 보존한다(archive 원본 + sidecar).
 3. **monitor01 기동 — MON Lead:** `DEPLOY_PLAN_20260929.md`와 `runtime_launch_local.py`대로 Harbor digest만 받아 기동한다. 실행 인자는 실행기가 정한다(`--config.file=/etc/blackbox/blackbox.yml`, `--web.listen-address=127.0.0.1:9115`).
 
 ## 확인할 결과
 
 - `version.txt`: `blackbox_exporter, version 0.28.0-master.065fc18 (branch: master, revision: 065fc188bd7609e41d9e28039dc4ee2cde5d5d74)`, go1.25.14
 - `image-config.txt`: User `65532:65532`, Entrypoint `["/bin/blackbox_exporter"]`
-- 이미지 ID는 빌드 시각 때문에 2026-09-27 값(`8d75253e…`)과 다를 수 있다. 입력 digest·소스 SHA·version 출력이 같으면 같은 빌드로 본다.
+- 이 빌드는 byte 단위 재현(reproducible build)을 보장하지 않는다. 이미지 ID는 빌드 시각 등으로 2026-09-27 값(`8d75253e…`)과 다를 수 있다. 입력 digest·소스 SHA·version 출력이 같다는 것은 **입력 출처가 같다**는 뜻일 뿐이며, 채택하는 결과물은 **Harbor digest로 최종 고정**한다.
