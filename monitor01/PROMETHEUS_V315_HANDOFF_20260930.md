@@ -1,6 +1,6 @@
 # P1-MON-01 Prometheus v3.15.0 이미지 공급 Handoff — 2026-09-30
 
-상태: **HBR_MIRROR_APPROVED_CONDITIONAL / TLS_RESTORE_BLOCKED / RUNTIME NOT RUN**  
+상태: **HBR_MIRROR_APPROVED / HARBOR_TLS_RESTORED / MIRROR RUNTIME NOT RUN**  
 책임 티켓: [P1-MON-01 #17](https://github.com/321Team/fds-project-baseline/issues/17)  
 실행 책임: **MON Lead 이재환 (@supreme33-kr)**  
 HBR 최종 대조: **이하영 (@hayeounglee)**  
@@ -19,7 +19,7 @@ Support: 이권욱 (@GWONUK)
    - Prometheus: **v3.14.0**
    - Harbor Trivy: **CRITICAL=0 / HIGH=3**
    - 판정: **REJECTED_FOR_ICR / HOLD**. 삭제하지 않고 변경 사유 증적으로 보존하며 monitor01 공급·기동에 사용하지 않는다.
-4. 신규 receiver 후보는 공식 `prom/prometheus:v3.15.0`으로 한다. **tag는 승인값이 아니며**, upstream immutable digest와 Harbor immutable digest를 각각 기록한다. 2026-09-30 HBR #13에서 HBR Lead가 **v3.15.0 신규 candidate mirror를 승인**했다. 단, 같은 #13에서 harbor01의 외부 TLS Leaf가 `FDS Project Root CA 2026` 서명 Leaf에서 self-signed로 회귀한 사실이 확인돼 **승인 CA 서명 Leaf 복구 및 검증 완료 전 Gate B Push는 BLOCKED**다.
+4. 신규 receiver 후보는 공식 `prom/prometheus:v3.15.0`으로 한다. **tag는 승인값이 아니며**, upstream immutable digest와 Harbor immutable digest를 각각 기록한다. 2026-09-30 HBR #13에서 HBR Lead가 **v3.15.0 신규 candidate mirror를 승인**했다. 이후 harbor01 외부 TLS Leaf의 self-signed 회귀를 복구했으며, 17:20 KST Runtime 재검증에서 `FDS Project Root CA 2026` 서명 Leaf, IP SAN `10.1.93.54`, SHA256 fingerprint `61:61:7A:F3:57:4F:37:C7:0A:2D:9C:7F:28:4A:75:F8:2C:84:4A:E3:EA:F5:99:CB:3D:0E:C6:49:12:6E:BE:AF`, TLS verify code 0, Harbor API healthy, Trivy healthy/restart 0을 확인했다. 따라서 서버 측 TLS 복구 차단은 해소됐다.
 5. upstream Prometheus v3.15.0 `go.mod` 확인상 현재 v3.14.0에서 HIGH를 유발한 주요 모듈은 다음 수준으로 갱신돼 있다.
    - `golang.org/x/crypto`: v0.54.0 → **v0.56.0**
    - `google.golang.org/grpc`: v1.82.1 → **v1.83.2**
@@ -72,7 +72,7 @@ official prom/prometheus:v3.15.0
 
 실행 host는 **control01**로 고정한다. 기존 승인 supply path(ansible01에서 source 확보/고정 → tar 전달 → control01에서 Harbor Push)를 사용한다.
 
-**선행 승인:** HBR #13의 @hayeounglee **Prometheus v3.15.0 신규 mirror 승인**은 완료됐다. 다만 승인 조건으로 harbor01의 **CA 서명 Leaf 복구 확인 후에만 Gate B Push**가 허용된다. self-signed 상태에서는 Gate A까지만 진행하고 Gate B는 STOP한다.
+**선행 승인:** HBR #13의 @hayeounglee **Prometheus v3.15.0 신규 mirror 승인**은 완료됐고, 승인 조건이던 harbor01 **CA 서명 Leaf 복구도 2026-09-30 17:20 KST Runtime 검증 PASS**로 충족됐다. Gate B는 서버 TLS 차단이 해소됐지만, 아래 control01 CA trust 및 `latest` digest 사전검사를 통과한 뒤에만 Push한다.
 
 HBR 승인 credential을 사용하며 Secret은 명령행·로그·Git에 남기지 않는다.
 
@@ -184,7 +184,7 @@ DIGEST_MATCH=PASS
 
 ## 5. 경계
 
-- 2026-09-30 HBR #13에서 Prometheus v3.15.0 신규 mirror는 **조건부 승인**됐다. 조건은 harbor01의 승인 CA 서명 Leaf 복구 및 TLS 검증 완료이며, self-signed 상태에서는 Gate B가 차단된다.
+- 2026-09-30 HBR #13에서 Prometheus v3.15.0 신규 mirror는 승인됐고, 조건이던 harbor01 승인 CA 서명 Leaf 복구/TLS 재검증은 17:20 KST PASS했다. 이는 실제 v3.15.0 mirror/scan 완료를 의미하지 않는다.
 - Harbor v2.13.1 유지 결정은 현재 프로젝트 종료까지의 실행 기준이며, v2.15.2 업그레이드 완료를 의미하지 않는다.
 - 이번 문서는 candidate supply/runbook이다. PR 병합만으로 Harbor mirror, Scan, tar 생성, monitor01 load 또는 Runtime 완료를 선언하지 않는다.
 - v3.15.0 upstream dependency 수준은 후보 선정 근거다. 실제 Harbor Trivy 결과만 0/0 Gate를 판정한다.
