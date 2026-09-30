@@ -1,6 +1,6 @@
 # P1-MON-01 Prometheus v3.15.0 이미지 공급 Handoff — 2026-09-30
 
-상태: **READY_FOR_CANDIDATE_SUPPLY / RUNTIME NOT RUN**  
+상태: **HBR_MIRROR_APPROVAL_PENDING / RUNTIME NOT RUN**  
 책임 티켓: [P1-MON-01 #17](https://github.com/321Team/fds-project-baseline/issues/17)  
 실행 책임: **MON Lead 이재환 (@supreme33-kr)**  
 HBR 최종 대조: **이하영 (@hayeounglee)**  
@@ -19,7 +19,7 @@ Support: 이권욱 (@GWONUK)
    - Prometheus: **v3.14.0**
    - Harbor Trivy: **CRITICAL=0 / HIGH=3**
    - 판정: **REJECTED_FOR_ICR / HOLD**. 삭제하지 않고 변경 사유 증적으로 보존하며 monitor01 공급·기동에 사용하지 않는다.
-4. 신규 receiver 후보는 공식 `prom/prometheus:v3.15.0`으로 한다. **tag는 승인값이 아니며**, upstream immutable digest와 Harbor immutable digest를 각각 기록한다.
+4. 신규 receiver 후보는 공식 `prom/prometheus:v3.15.0`으로 한다. **tag는 승인값이 아니며**, upstream immutable digest와 Harbor immutable digest를 각각 기록한다. 2026-09-30 최신 HBR #13 기준 **v3.15.0 신규 mirror에 대한 HBR Lead의 명시적 승인은 아직 PENDING**이며, Gate B Push 전에 승인 코멘트가 필요하다.
 5. upstream Prometheus v3.15.0 `go.mod` 확인상 현재 v3.14.0에서 HIGH를 유발한 주요 모듈은 다음 수준으로 갱신돼 있다.
    - `golang.org/x/crypto`: v0.54.0 → **v0.56.0**
    - `google.golang.org/grpc`: v1.82.1 → **v1.83.2**
@@ -51,7 +51,7 @@ official prom/prometheus:v3.15.0
 
 ### Gate A — upstream 후보 identity 고정
 
-기존 승인된 외부 반입 위치에서 공식 `prom/prometheus:v3.15.0`을 조회한다.
+실행 host는 **ansible01**로 고정한다. ansible01에서 공식 `prom/prometheus:v3.15.0`을 조회하고 source identity를 고정한다.
 
 필수 기록:
 - source registry/repository
@@ -70,17 +70,32 @@ official prom/prometheus:v3.15.0
 
 ### Gate B — Harbor candidate mirror
 
-기존 승인된 supply path와 HBR 승인 credential을 사용한다. Secret은 명령행·로그·Git에 남기지 않는다.
+실행 host는 **control01**로 고정한다. 기존 승인 supply path(ansible01에서 source 확보/고정 → tar 전달 → control01에서 Harbor Push)를 사용한다.
+
+**선행 승인:** HBR #13에서 @hayeounglee의 **Prometheus v3.15.0 신규 mirror 승인 코멘트**를 확인한 뒤에만 Gate B를 실행한다. 2026-09-30 현재 이 승인은 **PENDING**이다. MON Lead의 버전 교체 결정만으로 HBR mirror 승인을 대체하지 않는다.
+
+HBR 승인 credential을 사용하며 Secret은 명령행·로그·Git에 남기지 않는다.
 
 대상 repository:
 `10.1.93.54/fds/prometheus`
 
 candidate tag는 식별용으로만 사용하며 최종 승인·배포는 digest를 사용한다.
 
+**태그 안전장치:**
+- candidate에 `latest` 또는 현재 클러스터 매니페스트가 참조하는 태그를 **사용하지 않는다**.
+- candidate tag 예시: `v3.15.0-candidate-20260930`.
+- Push 전 Harbor `fds/prometheus:latest`의 full digest를 기록한다. 현재 기준 기대값은 `sha256:b77f9cee82fd1c61521634d2d6b192fc526ffd938e904b8e6836b6c0cf8d875a`이며, 실행 시 값이 다르면 STOP하고 최신 상태를 재대조한다.
+- Push 후 `latest` full digest가 Push 전 값과 **완전 동일**한지 재확인한다. 달라졌으면 candidate 검증을 중단하고 HBR/MON에 즉시 보고한다.
+
+**TLS/CA 선행 확인:**
+- control01의 Podman/registry client가 Harbor Private CA를 신뢰하는지 먼저 확인한다. 승인된 CA 위치/설정만 사용한다.
+- CA trust가 없거나 certificate verification이 실패하면 **STOP**하고 HBR에서 승인된 CA 배치 절차를 확인한다.
+- `--tls-verify=false`, `-k`, insecure registry로 우회하지 않는다.
+
 필수 확인:
-- Harbor Private CA 검증 유지
-- `--tls-verify=false`, `-k`, insecure registry 금지
-- Push 후 Harbor artifact의 **full immutable digest** 수집
+- Gate B 시작 전 HBR mirror 승인 근거 URL/코멘트 ID 기록
+- Push 전/후 `latest` digest 불변 확인
+- Push 후 Harbor candidate artifact의 **full immutable digest** 수집
 - upstream digest와 Harbor digest가 다른 경우 manifest 형식/재포장 여부를 설명하고 실제 공급 artifact를 Harbor digest로 추적
 
 ### Gate C — Harbor Trivy
@@ -169,6 +184,7 @@ DIGEST_MATCH=PASS
 
 ## 5. 경계
 
+- 2026-09-30 현재 HBR #13의 Prometheus v3.15.0 신규 mirror 승인은 **PENDING**이다. 본 문서/PR 병합은 HBR 승인으로 간주하지 않는다.
 - Harbor v2.13.1 유지 결정은 현재 프로젝트 종료까지의 실행 기준이며, v2.15.2 업그레이드 완료를 의미하지 않는다.
 - 이번 문서는 candidate supply/runbook이다. PR 병합만으로 Harbor mirror, Scan, tar 생성, monitor01 load 또는 Runtime 완료를 선언하지 않는다.
 - v3.15.0 upstream dependency 수준은 후보 선정 근거다. 실제 Harbor Trivy 결과만 0/0 Gate를 판정한다.
