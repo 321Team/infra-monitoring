@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import argparse, json, os, pwd, re, shutil, socket, subprocess, sys
+import argparse, json, os, pwd, re, shutil, socket, subprocess, sys, time
 from pathlib import Path
 
 HOST="monitor01"
@@ -62,16 +62,24 @@ def exists(podman,name):
 def remove(podman,name):
     if exists(podman,name): run([podman,"rm","-f",name],check=False)
 
-def verify(ss):
-    lines=run([ss,"-ltnH"]).stdout.splitlines()
-    out={}
-    for port in (19090,9115):
-        matches=[x for x in lines if f":{port}" in x]
-        if not matches: raise Stop(f"listener {port} missing")
-        bad=[x for x in matches if f"127.0.0.1:{port}" not in x]
-        if bad: raise Stop(f"listener {port} is not localhost-only: {bad}")
-        out[str(port)]=matches
-    return out
+LISTEN_WAIT_SECONDS=30
+
+# podman run -d는 프로세스가 포트를 열기 전에 돌아온다. 미기동은 최대 30초 재확인,
+# localhost 밖 listen은 기다리지 않고 바로 STOP한다.
+def verify(ss,wait=LISTEN_WAIT_SECONDS):
+    deadline=time.monotonic()+wait
+    while True:
+        lines=run([ss,"-ltnH"]).stdout.splitlines()
+        out,missing={},[]
+        for port in (19090,9115):
+            matches=[x for x in lines if f":{port}" in x]
+            bad=[x for x in matches if f"127.0.0.1:{port}" not in x]
+            if bad: raise Stop(f"listener {port} is not localhost-only: {bad}")
+            if matches: out[str(port)]=matches
+            else: missing.append(port)
+        if not missing: return out
+        if time.monotonic()>=deadline: raise Stop(f"listener {missing} missing after {wait}s")
+        time.sleep(1)
 
 def start(args):
     podman,ss=require_identity()
@@ -98,7 +106,10 @@ def start(args):
         run(bc); started.append(BLACKBOX_NAME)
         listeners=verify(ss)
     except BaseException:
-        for n in reversed(started): remove(podman,n)
+        for n in reversed(started):
+            logs=run([podman,"logs","--tail","50",n],check=False)
+            print(f"--- {n} logs (last 50) ---\n{logs.stdout}{logs.stderr}",file=sys.stderr)
+            remove(podman,n)
         raise
     print(json.dumps({"status":"LOCAL_SERVICES_STARTED","runtime":"RUNNING_NOT_ACCEPTED","containers":started,
                       "listeners":listeners,"receiver_image":rimg,"blackbox_image":bimg},ensure_ascii=False,indent=2))

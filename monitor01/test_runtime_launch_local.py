@@ -132,5 +132,51 @@ class StartTests(unittest.TestCase):
         self.assertFalse(any(c[1] == "run" for c in fake.calls))
 
 
+LISTEN_OK = ["LISTEN 0 4096 127.0.0.1:19090 0.0.0.0:*", "LISTEN 0 4096 127.0.0.1:9115 0.0.0.0:*"]
+
+
+class VerifyTests(unittest.TestCase):
+    def ss_seq(self, *outputs):
+        it = iter(outputs)
+        return lambda argv, check=True: proc(0, "\n".join(next(it)))
+
+    def test_waits_until_listeners_appear(self):
+        seq = self.ss_seq([], [LISTEN_OK[1]], LISTEN_OK)
+        with mock.patch.object(m, "run", seq), mock.patch.object(m.time, "sleep") as sl:
+            out = m.verify("ss", wait=30)
+        self.assertEqual(sorted(out), ["19090", "9115"])
+        self.assertEqual(sl.call_count, 2)
+
+    def test_non_localhost_stops_without_waiting(self):
+        seq = self.ss_seq(["LISTEN 0 4096 0.0.0.0:19090 0.0.0.0:*"])
+        with mock.patch.object(m, "run", seq), mock.patch.object(m.time, "sleep") as sl, \
+                self.assertRaises(m.Stop):
+            m.verify("ss", wait=30)
+        sl.assert_not_called()
+
+    def test_missing_after_deadline_stops(self):
+        clock = iter([0, 0, 31])
+        with mock.patch.object(m, "run", lambda argv, check=True: proc(0, "")), \
+                mock.patch.object(m.time, "monotonic", lambda: next(clock)), \
+                mock.patch.object(m.time, "sleep"), self.assertRaises(m.Stop):
+            m.verify("ss", wait=30)
+
+    def test_start_failure_dumps_logs_before_remove(self):
+        fake = FakePodman({CFG_R: inspect_out(CFG_R), CFG_B: inspect_out(CFG_B)})
+        removed = []
+        fs = mock.patch.multiple(m.Path, is_file=lambda self: True, is_dir=lambda self: True,
+                                 is_symlink=lambda self: False)
+        with fs, mock.patch.object(m, "run", fake), \
+                mock.patch.object(m, "require_identity", return_value=("podman", "ss")), \
+                mock.patch.object(m, "exists", return_value=False), \
+                mock.patch.object(m, "remove", lambda p, n: removed.append(n)), \
+                mock.patch.object(m, "verify", side_effect=m.Stop("listener [19090] missing after 30s")), \
+                mock.patch("sys.stderr"), self.assertRaises(m.Stop):
+            m.start(StartTests.args(None))
+        logs = [c[-1] for c in fake.calls if c[1] == "logs"]
+        self.assertEqual(logs, [m.BLACKBOX_NAME, m.RECEIVER_NAME])
+        self.assertEqual(removed, [m.BLACKBOX_NAME, m.RECEIVER_NAME])
+
+
 if __name__ == "__main__":
     unittest.main()
