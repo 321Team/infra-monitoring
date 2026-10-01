@@ -19,11 +19,11 @@
 - receiver 신규 후보는 공식 `prom/prometheus:v3.15.0`이다. 태그 자체를 승인값으로 사용하지 않고 upstream immutable digest를 먼저 고정한 뒤 Harbor `fds/prometheus`로 mirror한다. **2026-09-30 HBR #13에서 v3.15.0 신규 mirror는 승인됐고, harbor01의 self-signed 회귀도 17:20 KST에 승인 CA 서명 Leaf로 복구·TLS 검증 PASS했다.** 실제 Push 전에는 control01의 CA trust와 `fds/prometheus:latest` digest 사전값을 다시 확인한다. candidate에는 `latest`를 사용하지 않고(예: `v3.15.0-candidate-20260930`), Push 전/후 기존 `fds/prometheus:latest` digest가 변하지 않았는지 확인한다. Harbor에서 다시 Scan하여 **CRITICAL=0 / HIGH=0**인 정확한 Harbor digest만 승인 후보가 된다.
 - 세부 handoff와 중단 기준은 [PROMETHEUS_V315_HANDOFF_20260930.md](PROMETHEUS_V315_HANDOFF_20260930.md)를 따른다.
 - blackbox-exporter, nginx는 기존 HBR 인계 절차를 유지한다. 승인된 source/digest를 Harbor `fds/`로 mirror하고 CRITICAL/HIGH=0을 확인한 뒤 immutable digest를 기록한다.
-- monitor01에는 Harbor 경로가 없으므로, **승인 확정된 Harbor digest로 다시 pull한 tar**만 ansible01 → monitor01(관리망)로 전달하고 `podman load`한다. tar SHA256과 load 후 local image digest를 대조한다.
+- monitor01에는 Harbor 경로가 없으므로, **승인 확정된 Harbor digest로 다시 pull한 tar**만 ansible01 → monitor01(관리망)로 전달하고 `podman load`한다. tar SHA256과, load 후 로컬 이미지 ID = 승인 Harbor manifest의 config digest를 대조한다(Gate F A안, local RepoDigest는 기록만).
 
 ## 저장소 안전 실행기
 
-- `monitor01/runtime_launch_local.py`: monitor01의 `server01_monitor`만 실행한다. Harbor **digest 참조만** 받고 receiver/Blackbox의 exact Podman argv를 저장소 코드로 고정한다. receiver는 `127.0.0.1:19090`, Blackbox는 `127.0.0.1:9115`를 강제하고, 기동 직후 `ss -ltnH` 결과가 localhost-only가 아니면 이번 두 컨테이너를 즉시 회수한다.
+- `monitor01/runtime_launch_local.py`: monitor01의 `server01_monitor`만 실행한다. Harbor **digest 참조와 예상 config digest**를 함께 받아 로컬 이미지 ID가 일치할 때만 **그 이미지 ID로 `--pull=never`** 기동하고(불일치·미적재는 STOP), receiver/Blackbox의 exact Podman argv를 저장소 코드로 고정한다. `verify-image`는 기동 없이 같은 대조만 한다(nginx 기동 전 확인용). receiver는 `127.0.0.1:19090`, Blackbox는 `127.0.0.1:9115`를 강제하고, 기동 직후 `ss -ltnH` 결과가 localhost-only가 아니면 이번 두 컨테이너를 즉시 회수한다.
 - `monitor01/runtime_fault_api_lb.py`: `server01_monitor`의 `sudo -n` 실행만 허용한다. 영향 범위는 **monitor01의 모든 OUTPUT TCP → 10.1.93.109:6443**이다. 동일 목적지의 기존 OUTPUT rule이 있으면 중단한다. firewalld direct rule을 넣기 전에 systemd transient timer로 동일 rule의 30~180초 자동 회수를 먼저 arm하고, 정상 종료 시 exact rule 제거와 timer 정리를 수행한다.
 - 두 스크립트 모두 보안 통제를 해제하지 않는다. SELinux/firewalld 서비스 자체를 중지하거나 `--insecure` 옵션을 쓰지 않는다.
 
@@ -32,9 +32,9 @@
 2. **디렉터리 준비:** 위 경로를 만들고, 데이터 디렉터리는 `65534:65534`(prometheus 이미지 사용자)로 둔다. SELinux는 볼륨 `:Z`로 처리한다. 키 디렉터리는 relabel하지 않는다.
 3. **설정 준비:** `source_ipv4=10.1.93.108`은 2026-09-28 IF-06B 동기 tcpdump 실측값을 사용한다. 첫날에는 NGINX/sender를 만들지 않는다. receiver 설정은 README의 heartbeat/watchdog + `blackbox/receiver-scrape-blackbox.json`만 합쳐 `/etc/fds/monitor01/receiver/prometheus.yml`에 두고, Blackbox 설정은 저장소 `blackbox.yml`과 byte/hash를 대조해 `/etc/fds/monitor01/blackbox/blackbox.yml`로 둔다. 실제 승인 이미지의 `promtool check config` / `check rules`를 먼저 통과해야 한다.
 4. **localhost-only 기동:** Blackbox Harbor digest가 확정된 뒤 아래 저장소 실행기만 사용한다. 임의 `podman run` 재작성은 하지 않는다.
-   - `python3 monitor01/runtime_launch_local.py start --receiver-image <approved-prometheus@sha256:...> --blackbox-image <approved-blackbox@sha256:...>`
+   - `python3 monitor01/runtime_launch_local.py start --receiver-image <approved-prometheus@sha256:...> --receiver-config-digest <sha256:...> --blackbox-image <approved-blackbox@sha256:...> --blackbox-config-digest <sha256:...>`
    - 기존 Prometheus v3.14.0 `b77f9cee...`는 HIGH=3이므로 이 자리의 승인 digest로 사용할 수 없다.
-   - 실행기는 비-digest 이미지, 기존 동명 컨테이너, 누락 config/data, root 실행을 거부한다.
+   - 실행기는 비-digest 이미지, 로컬 이미지 ID ≠ 예상 config digest, 미적재 이미지(pull 시도 없음), 기존 동명 컨테이너, 누락 config/data, root 실행을 거부한다.
    - 성공 기준은 `ss -ltnH`에서 19090·9115가 각각 `127.0.0.1`에만 존재하는 것이다. `0.0.0.0`, `::`, 관리망 IP listen이 하나라도 보이면 실행기가 두 컨테이너를 회수하고 STOP한다.
 5. **LB Probe 시험(#17 AC "API LB TCP Probe 실패·복구")**
    - 정상: `probe_success{instance="10.1.93.109:6443"}` = 1을 2회 이상 확인한다.

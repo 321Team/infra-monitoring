@@ -47,7 +47,7 @@ monitor01 IF-06A Probe(`blackbox.yml`, `tcp_connect`)에 쓸 blackbox-exporter �
      이어서 소스 tar SHA가 이 문서 입력 표 값(`952651a8…`)과 같은지, `podman load` 뒤 image ID가 `image-id.txt`와 같은지, `version.txt` revision·`build-inputs.txt` digest가 입력 표와 같은지 대조한다.
    - 그 뒤 `10.1.93.54/fds/blackbox-exporter:0.28.0-master.065fc18-candidate-<날짜>`로 push → Harbor Trivy CRITICAL 0 / HIGH 0 확인 → Harbor digest 기록 → 승인 digest 재-pull·tar·SHA256을 ansible01에 둔다. `latest`나 기존 태그는 쓰지 않는다.
    - 빌드 근거 묶음은 이미지와 같은 실행 회차의 원본으로 증적 저장소에 보존한다(archive 원본 + sidecar).
-3. **monitor01 기동 — MON Lead:** `DEPLOY_PLAN_20260929.md`와 `runtime_launch_local.py`대로 Harbor digest만 받아 기동한다. 실행 인자는 실행기가 정한다(`--config.file=/etc/blackbox/blackbox.yml`, `--web.listen-address=127.0.0.1:9115`).
+3. **monitor01 기동 — MON Lead:** `DEPLOY_PLAN_20260929.md`와 `runtime_launch_local.py`대로 Harbor digest와 예상 config digest(= 빌드 image ID)를 함께 받아, 로컬 이미지 ID가 일치할 때만 그 ID로 `--pull=never` 기동한다(Gate F A안). 실행 인자는 실행기가 정한다(`--config.file=/etc/blackbox/blackbox.yml`, `--web.listen-address=127.0.0.1:9115`).
 
 ## 확인할 결과
 
