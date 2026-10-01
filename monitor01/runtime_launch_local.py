@@ -10,6 +10,12 @@ BLACKBOX_NAME="fds-monitor01-blackbox"
 RECEIVER_HOST_CONFIG=Path("/etc/fds/monitor01/receiver/prometheus.yml")
 RECEIVER_HOST_DATA=Path("/var/lib/fds/monitor01/receiver")
 BLACKBOX_HOST_CONFIG=Path("/etc/fds/monitor01/blackbox/blackbox.yml")
+NGINX_NAME="fds-monitor01-nginx"
+NGINX_LISTEN="10.250.10.30:8443"
+NGINX_HOST_CONFIG=Path("/etc/fds/monitor01/nginx/nginx.conf")
+NGINX_HOST_HTPASSWD=Path("/etc/fds/monitor01/nginx/htpasswd")
+NGINX_HOST_CERT=Path("/etc/fds/monitor01/tls/monitor01.crt")
+NGINX_HOST_KEY=Path("/etc/fds/pki/monitor01/request/monitor01.key")
 IMAGE_RE=re.compile(r"^10\.1\.93\.54/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$")
 CONFIG_RE=re.compile(r"^sha256:([0-9a-f]{64})$")
 
@@ -63,18 +69,19 @@ def remove(podman,name):
     if exists(podman,name): run([podman,"rm","-f",name],check=False)
 
 LISTEN_WAIT_SECONDS=30
+LOCAL_LISTENERS={19090:"127.0.0.1:19090",9115:"127.0.0.1:9115"}
 
 # podman run -d는 프로세스가 포트를 열기 전에 돌아온다. 미기동은 최대 30초 재확인,
-# localhost 밖 listen은 기다리지 않고 바로 STOP한다.
-def verify(ss,wait=LISTEN_WAIT_SECONDS):
+# 정해진 주소 밖 listen은 기다리지 않고 바로 STOP한다.
+def verify(ss,wait=LISTEN_WAIT_SECONDS,expected=LOCAL_LISTENERS):
     deadline=time.monotonic()+wait
     while True:
         lines=run([ss,"-ltnH"]).stdout.splitlines()
         out,missing={},[]
-        for port in (19090,9115):
+        for port,addr in expected.items():
             matches=[x for x in lines if f":{port}" in x]
-            bad=[x for x in matches if f"127.0.0.1:{port}" not in x]
-            if bad: raise Stop(f"listener {port} is not localhost-only: {bad}")
+            bad=[x for x in matches if addr not in x]
+            if bad: raise Stop(f"listener {port} is not bound only to {addr}: {bad}")
             if matches: out[str(port)]=matches
             else: missing.append(port)
         if not missing: return out
@@ -124,6 +131,53 @@ def stop(_args):
     for n in (BLACKBOX_NAME,RECEIVER_NAME): remove(podman,n)
     print(json.dumps({"status":"LOCAL_SERVICES_STOPPED","containers":[BLACKBOX_NAME,RECEIVER_NAME]},indent=2))
 
+def nginx_files():
+    for p in (NGINX_HOST_CONFIG,NGINX_HOST_HTPASSWD,NGINX_HOST_CERT,NGINX_HOST_KEY):
+        if not p.is_file() or p.is_symlink(): raise Stop(f"required nginx file missing/unsafe: {p}")
+
+# 키는 relabel하지 않는다(:Z 없음). container_read_certs + 키 1개 읽기 ACL로 읽는다(#17 5927558258·5927596564).
+# 인증서·htpasswd·키는 호스트와 같은 경로로 마운트해 nginx.conf의 render_candidate 경로를 그대로 쓴다.
+def nginx_run_args(image_id):
+    return ["--pull=never","--security-opt","no-new-privileges","--cap-drop","all",
+            "-v",f"{NGINX_HOST_CONFIG}:/etc/nginx/nginx.conf:ro,Z",
+            "-v",f"{NGINX_HOST_HTPASSWD}:{NGINX_HOST_HTPASSWD}:ro,Z",
+            "-v",f"{NGINX_HOST_CERT}:{NGINX_HOST_CERT}:ro,Z",
+            "-v",f"{NGINX_HOST_KEY}:{NGINX_HOST_KEY}:ro",
+            image_id,"-c","/etc/nginx/nginx.conf","-e","/dev/stderr"]
+
+def nginx_image(podman,args):
+    img=resolve_local_image(podman,args.image,args.config_digest,"nginx")
+    nginx_files()
+    return img,img["local_image_id"][len("sha256:"):]
+
+def check_nginx(args):
+    podman,_=require_identity()
+    img,image_id=nginx_image(podman,args)
+    p=run([podman,"run","--rm","--network","none",*nginx_run_args(image_id),"-t"],check=False)
+    if p.returncode!=0: raise Stop(f"nginx -t failed rc={p.returncode}\n{p.stdout}{p.stderr}")
+    print(json.dumps({"status":"NGINX_CONFIG_OK","runtime":"NOT_STARTED","nginx_t":(p.stdout+p.stderr).strip(),
+                      "nginx_image":img},ensure_ascii=False,indent=2))
+
+def start_nginx(args):
+    podman,ss=require_identity()
+    img,image_id=nginx_image(podman,args)
+    if exists(podman,NGINX_NAME): raise Stop(f"container already exists: {NGINX_NAME}")
+    try:
+        run([podman,"run","-d","--name",NGINX_NAME,"--network","host",*nginx_run_args(image_id),"-g","daemon off;"])
+        listeners=verify(ss,expected={8443:NGINX_LISTEN})
+    except BaseException:
+        logs=run([podman,"logs","--tail","50",NGINX_NAME],check=False)
+        print(f"--- {NGINX_NAME} logs (last 50) ---\n{logs.stdout}{logs.stderr}",file=sys.stderr)
+        remove(podman,NGINX_NAME)
+        raise
+    print(json.dumps({"status":"NGINX_STARTED","runtime":"RUNNING_NOT_ACCEPTED","container":NGINX_NAME,
+                      "listeners":listeners,"nginx_image":img},ensure_ascii=False,indent=2))
+
+def stop_nginx(_args):
+    podman,_=require_identity()
+    remove(podman,NGINX_NAME)
+    print(json.dumps({"status":"NGINX_STOPPED","container":NGINX_NAME},indent=2))
+
 def main():
     p=argparse.ArgumentParser()
     sub=p.add_subparsers(dest="command",required=True)
@@ -132,6 +186,9 @@ def main():
     s.set_defaults(func=start)
     v=sub.add_parser("verify-image"); v.add_argument("--image",required=True); v.add_argument("--config-digest",required=True); v.set_defaults(func=verify_image)
     t=sub.add_parser("stop"); t.set_defaults(func=stop)
+    for name,func in (("check-nginx",check_nginx),("start-nginx",start_nginx)):
+        n=sub.add_parser(name); n.add_argument("--image",required=True); n.add_argument("--config-digest",required=True); n.set_defaults(func=func)
+    sn=sub.add_parser("stop-nginx"); sn.set_defaults(func=stop_nginx)
     a=p.parse_args(); a.func(a); return 0
 
 if __name__=="__main__":
