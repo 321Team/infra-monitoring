@@ -24,6 +24,7 @@
 ## 저장소 안전 실행기
 
 - `monitor01/runtime_launch_local.py`: monitor01의 `server01_monitor`만 실행한다. Harbor **digest 참조와 예상 config digest**를 함께 받아 로컬 이미지 ID가 일치할 때만 **그 이미지 ID로 `--pull=never`** 기동하고(불일치·미적재는 STOP), receiver/Blackbox의 exact Podman argv를 저장소 코드로 고정한다. `verify-image`는 기동 없이 같은 대조만 한다(nginx 기동 전 확인용). receiver는 `127.0.0.1:19090`, Blackbox는 `127.0.0.1:9115`를 강제하고, 기동 직후 `ss -ltnH` 결과가 localhost-only가 아니면 이번 두 컨테이너를 즉시 회수한다.
+- 같은 실행기의 `check-nginx` / `start-nginx` / `stop-nginx`: nginx Harbor digest와 예상 config digest로 이미지 ID를 대조한 뒤 `--pull=never`로 실행한다. 설정은 저장소 `monitor01/nginx/nginx.conf`(render_candidate server 블록, listen `10.250.10.30:8443`)를 `/etc/fds/monitor01/nginx/nginx.conf`에 두고 쓴다. `check-nginx`는 `--network none`으로 `nginx -t`만 하고, `start-nginx`는 `10.250.10.30:8443`에만 listen하는지 확인한다. 키는 relabel 없이 읽기 전용으로 마운트한다(SELinux `container_read_certs` + 키 1개 ACL, firewalld `.108→.30:443`만 8443으로 포워드 — #17 5927558258·5927596564).
 - `monitor01/runtime_fault_api_lb.py`: `server01_monitor`의 `sudo -n` 실행만 허용한다. 영향 범위는 **monitor01의 모든 OUTPUT TCP → 10.1.93.109:6443**이다. 동일 목적지의 기존 OUTPUT rule이 있으면 중단한다. firewalld direct rule을 넣기 전에 systemd transient timer로 동일 rule의 30~180초 자동 회수를 먼저 arm하고, 정상 종료 시 exact rule 제거와 timer 정리를 수행한다.
 - 두 스크립트 모두 보안 통제를 해제하지 않는다. SELinux/firewalld 서비스 자체를 중지하거나 `--insecure` 옵션을 쓰지 않는다.
 
