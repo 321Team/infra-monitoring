@@ -42,7 +42,7 @@ official prom/prometheus:v3.15.0
   -> tar export + SHA256
   -> ansible01 -> monitor01
   -> podman load
-  -> local image digest match
+  -> local image ID = approved config digest (layer diff_ids 9/9)
   -> promtool/config/rule precheck
   -> monitor01 receiver Runtime
 ```
@@ -154,15 +154,27 @@ STOP:
 
 ### Gate F — monitor01 load 및 Runtime 전 precheck
 
+동일성 기준은 **config 동일성 체인(A안)** 이다([#17 MON Lead 결정 5924380025](https://github.com/321Team/fds-project-baseline/issues/17#issuecomment-5924380025)).
+
+```text
+승인 Harbor manifest digest -> config.digest -> docker-archive config -> monitor01 로컬 이미지 ID
+```
+
+docker-archive로 저장·로드하면 local RepoDigest가 새로 계산된다(v3.15.0 실측 `b3526e4e…`). 이 값은 **전송 과정의 local 값으로 기록만** 하고 동일성 판정에 쓰지 않는다.
+
 monitor01에서:
 - tar SHA256 재검증
 - `podman load`
-- local image digest를 승인 Harbor digest와 대조
+- **layer 대조(읽기 전용):** archive의 layer tar SHA256이 config `rootfs.diff_ids`와 전부 일치(v3.15.0은 9/9)
+- `runtime_launch_local.py verify-image --image <승인 Harbor digest> --config-digest <예상 config digest>` → `IMAGE_IDENTITY_MATCH`
+  - 실행기는 `podman image inspect <config digest hex>`의 `Id`가 예상 config digest와 정확히 같을 때만 통과한다. 미적재·불일치면 STOP하고 pull을 시도하지 않는다.
 - 실제 v3.15.0 확인
 - 승인 이미지의 `promtool check config` / `check rules` 수행
 - 기존 receiver/blackbox stopped container나 direct-pull 이미지를 승인 공급물로 재사용하지 않음
 
-모든 항목 PASS 후에만 `runtime_launch_local.py`의 receiver image 인자로 **승인 Harbor digest**를 전달한다.
+모든 항목 PASS 후에만 `runtime_launch_local.py start`에 **승인 Harbor digest와 예상 config digest를 함께** 전달한다. 실행기는 위와 같은 대조를 다시 한 뒤 **그 이미지 ID로 `--pull=never`** 기동하고, 불일치면 컨테이너를 만들지 않고 STOP한다. Harbor digest 참조로 직접 `podman run`하지 않는다(로컬에 그 RepoDigest가 없어 pull을 시도하고, monitor01에는 Harbor 경로가 없다).
+
+같은 기준을 blackbox(`start`의 `--blackbox-*` 인자)와 nginx(기동 전 `verify-image`)에도 적용한다. 클러스터 Prometheus는 Harbor에서 직접 pull하므로 해당하지 않는다.
 
 ## 4. 기록해야 할 최종 인계값
 
@@ -178,8 +190,11 @@ TRIVY_CRITICAL=0
 TRIVY_HIGH=0
 TAR_FILE=<actual>
 TAR_SHA256=<64hex>
-MONITOR01_LOCAL_DIGEST=sha256:<full>
-DIGEST_MATCH=PASS
+EXPECTED_CONFIG_DIGEST=sha256:<full>
+MONITOR01_LOCAL_IMAGE_ID=sha256:<full>
+MONITOR01_LOCAL_REPODIGEST=<transfer-local, 기록만>
+LAYER_DIFF_ID_MATCH=<n>/<n>
+IMAGE_IDENTITY_MATCH=PASS
 ```
 
 ## 5. 경계
