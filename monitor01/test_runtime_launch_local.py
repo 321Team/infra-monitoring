@@ -249,7 +249,7 @@ class NginxTests(unittest.TestCase):
         self.assertEqual([c[-1] for c in fake.calls if c[1] == "logs"], [m.NGINX_NAME])
         self.assertEqual(removed, [m.NGINX_NAME])
 
-    def test_check_uses_no_network_and_stops_on_failure(self):
+    def test_check_uses_host_network_and_stops_on_failure(self):
         class Fail(FakePodman):
             def __call__(self, argv, check=True):
                 r = super().__call__(argv, check)
@@ -258,8 +258,16 @@ class NginxTests(unittest.TestCase):
         with self.assertRaises(m.Stop):
             self.run_with(self.patched(fake), m.check_nginx)
         argv = [c for c in fake.calls if c[1] == "run"][0]
-        self.assertEqual(argv[argv.index("--network") + 1], "none")
+        self.assertEqual(argv[argv.index("--network") + 1], "host")
         self.assertEqual(argv[-1], "-t")
+
+    def test_check_refuses_when_nginx_already_exists(self):
+        fake = FakePodman({CFG_N: inspect_out(CFG_N)})
+        ctx = self.patched(fake)
+        ctx[3] = mock.patch.object(m, "exists", return_value=True)
+        with self.assertRaises(m.Stop):
+            self.run_with(ctx, m.check_nginx)
+        self.assertFalse(any(c[1] == "run" for c in fake.calls))
 
     def test_listen_on_other_address_stops_without_waiting(self):
         out = "LISTEN 0 511 0.0.0.0:8443 0.0.0.0:*"

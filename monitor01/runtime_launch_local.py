@@ -153,7 +153,10 @@ def nginx_image(podman,args):
 def check_nginx(args):
     podman,_=require_identity()
     img,image_id=nginx_image(podman,args)
-    p=run([podman,"run","--rm","--network","none",*nginx_run_args(image_id),"-t"],check=False)
+    if exists(podman,NGINX_NAME): raise Stop(f"{NGINX_NAME} already exists; check-nginx is a pre-start check")
+    # nginx -t는 listen 주소 bind까지 시험한다. --network none에는 10.250.10.30이 없어 99로 실패하므로
+    # start-nginx와 같은 host 네트워크로 시험한다(bind 후 바로 종료, 8443 외부 허용 없음).
+    p=run([podman,"run","--rm","--network","host",*nginx_run_args(image_id),"-t"],check=False)
     if p.returncode!=0: raise Stop(f"nginx -t failed rc={p.returncode}\n{p.stdout}{p.stderr}")
     print(json.dumps({"status":"NGINX_CONFIG_OK","runtime":"NOT_STARTED","nginx_t":(p.stdout+p.stderr).strip(),
                       "nginx_image":img},ensure_ascii=False,indent=2))
