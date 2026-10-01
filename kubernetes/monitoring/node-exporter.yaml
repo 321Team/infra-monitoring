@@ -21,7 +21,7 @@ spec:
       hostPID: true
       containers:
         - name: node-exporter
-          image: 10.1.93.54/fds/node-exporter@sha256:56566542aacd5be06add01d3456cd6279e2f7ddb4b24237fc8cdfbc3cc5f699f
+          image: 10.1.93.54/fds/node-exporter@sha256:4d5c92fcbea9fd5f2769a13192885366f6d348443ea6b48783590c9d9be43318
           args:
             - --path.rootfs=/host
             # 2026-09-30: 정본 monitoring-node 기준 "불필요 Collector 비활성". 기본 Collector(현장 49개)를 모두 끄고
