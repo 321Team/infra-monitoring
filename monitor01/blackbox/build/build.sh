@@ -2,7 +2,7 @@
 # monitor01 blackbox-exporter 소스 빌드 (ansible01, server01_ansible, rootless podman).
 # 입력(소스 tar·base 이미지 digest)이 BUILD.md 값과 다르면 즉시 멈춘다. 운영 서버·Harbor는 건드리지 않는다.
 # 결과는 새 작업 폴더에만 남긴다. 사용: bash build.sh   (이 파일과 Containerfile이 같은 폴더에 있어야 한다)
-# HBR 인계물: 이미지 tar + 빌드 근거 묶음(build-evidence-*.tar.gz) + 그 sidecar(.sha256). BUILD.md "절차" 참고.
+# HBR 인계물: 이미지 tar + 빌드 근거 묶음(build-evidence-*.tar.gz, 소스 tar 포함) + 그 sidecar(.sha256). BUILD.md "절차" 참고.
 set -o pipefail
 
 REV=065fc188bd7609e41d9e28039dc4ee2cde5d5d74
@@ -59,9 +59,10 @@ ls -l "$IMG_TAR"
 
 echo "== 5. 무결성 목록·빌드 근거 묶음"
 echo "DONE $(date -Is) image=$IMG_TAR" | tee -a result.txt
-# SHA256SUMS: 이미지 tar·소스 tar와 빌드 근거 파일 전부. 근거 묶음에 함께 넣는다.
+# SHA256SUMS: 이미지 tar·소스 tar와 빌드 근거 파일 전부. 근거 묶음에는 소스 tar(실제 빌드 입력 바이트)와 SHA256SUMS를 함께 넣어,
+# 근거 묶음 + 이미지 tar 두 파일만으로 `sha256sum -c SHA256SUMS`가 끝나게 한다.
 sha256sum "$IMG_TAR" "bb-src-$REV.tar.gz" $EVIDENCE > SHA256SUMS || stop "SHA256SUMS 생성 실패"
 cat SHA256SUMS
-tar czf "$EVB" $EVIDENCE SHA256SUMS || stop "근거 묶음 생성 실패"
+tar czf "$EVB" $EVIDENCE "bb-src-$REV.tar.gz" SHA256SUMS || stop "근거 묶음 생성 실패"
 sha256sum "$EVB" | tee "$EVB.sha256" || stop "근거 묶음 SHA 기록 실패"
 echo "HBR 인계: $W/$IMG_TAR, $W/$EVB, $W/$EVB.sha256"

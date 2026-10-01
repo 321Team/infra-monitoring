@@ -34,11 +34,17 @@ monitor01 IF-06A Probe(`blackbox.yml`, `tcp_connect`)에 쓸 blackbox-exporter �
      - 이미지 `blackbox-exporter-065fc18.tar`(docker-archive)
      - 빌드 근거 파일: `Containerfile`·`build.sh`·`kit.sha256`·`meta.txt`(시각·host·user·podman 버전)·`bb-src.sha256`·`build-inputs.txt`(실제 pull digest)·`build.log`·`version.txt`·`image-id.txt`·`image-config.txt`·`result.txt`(DONE)
      - `SHA256SUMS`: 이미지 tar·소스 tar·빌드 근거 파일 **전부**의 SHA-256
-     - **빌드 근거 묶음** `build-evidence-065fc18.tar.gz`(빌드 근거 파일 + `SHA256SUMS`)와 sidecar `build-evidence-065fc18.tar.gz.sha256`
+     - **빌드 근거 묶음** `build-evidence-065fc18.tar.gz`(빌드 근거 파일 + **소스 tar `bb-src-065fc188….tar.gz`(실제 빌드 입력 바이트)** + `SHA256SUMS`)와 sidecar `build-evidence-065fc18.tar.gz.sha256`
    - 운영 서버·Harbor·monitor01은 건드리지 않는다.
 2. **Harbor 반입·검사 — HBR(이하영), 기존 미러링 절차와 같음:**
    - **인계물 3개:** 이미지 tar, 빌드 근거 묶음, 그 sidecar. MON Lead는 세 파일의 SHA-256을 #13에 함께 적는다.
-   - **인수 검증:** sidecar로 근거 묶음 SHA 대조 → 묶음을 풀어 `sha256sum -c SHA256SUMS`(이미지 tar를 같은 폴더에 두고. 소스 tar는 묶음에 없으므로 그 줄은 `bb-src.sha256` 값과 대조) → 이미지 tar SHA가 `SHA256SUMS`와 일치 → `podman load` 뒤 image ID가 `image-id.txt`와 일치 → `version.txt`의 revision·`build-inputs.txt`의 digest가 이 문서의 입력 표와 일치.
+   - **인수 검증(전달물 3개만으로 실행):**
+     ```bash
+     sha256sum -c build-evidence-065fc18.tar.gz.sha256
+     mkdir v && tar xzf build-evidence-065fc18.tar.gz -C v && cp blackbox-exporter-065fc18.tar v/ && cd v
+     sha256sum -c SHA256SUMS          # 이미지 tar·소스 tar·근거 파일 전부 OK여야 한다
+     ```
+     이어서 소스 tar SHA가 이 문서 입력 표 값(`952651a8…`)과 같은지, `podman load` 뒤 image ID가 `image-id.txt`와 같은지, `version.txt` revision·`build-inputs.txt` digest가 입력 표와 같은지 대조한다.
    - 그 뒤 `10.1.93.54/fds/blackbox-exporter:0.28.0-master.065fc18-candidate-<날짜>`로 push → Harbor Trivy CRITICAL 0 / HIGH 0 확인 → Harbor digest 기록 → 승인 digest 재-pull·tar·SHA256을 ansible01에 둔다. `latest`나 기존 태그는 쓰지 않는다.
    - 빌드 근거 묶음은 이미지와 같은 실행 회차의 원본으로 증적 저장소에 보존한다(archive 원본 + sidecar).
 3. **monitor01 기동 — MON Lead:** `DEPLOY_PLAN_20260929.md`와 `runtime_launch_local.py`대로 Harbor digest만 받아 기동한다. 실행 인자는 실행기가 정한다(`--config.file=/etc/blackbox/blackbox.yml`, `--web.listen-address=127.0.0.1:9115`).
