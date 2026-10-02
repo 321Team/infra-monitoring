@@ -13,6 +13,8 @@
 - PVC 사용률: 세 PVC는 worker03 `/home` 한 파일시스템 위의 local PV라 `kubelet_volume_stats_*`가 파일시스템 전체(9/29 사용 4.3GiB / 166GiB)를 보여 준다. PVC별 사용량은 worker03 `du` 또는 `prometheus_tsdb_storage_blocks_bytes`(9/29 762MiB)로 본다.
 - 현장 반영: 병합은 적용이 아니다. 세 Deployment 모두 `:latest`·imagePullPolicy Always라 재시작하면 이미지를 다시 받는다. [G3 원칙](https://github.com/321Team/fds-project-baseline/issues/17#issuecomment-5885874627)대로 승인 digest 고정과 같은 재시작 창에서 반영하고, 그 전에 반영하려면 "현장 imageID = Harbor `latest` digest" 확인 조건으로 G3 확인을 먼저 받는다.
 - 2026-10-02: Alertmanager·Grafana·kube-state-metrics `image:`를 현장 실행 digest(`babefaac…`·`7a1ff544…`·`8ca59a98…`, 2026-10-02 10:34 KST 조회, Harbor 태그 `latest`·`latest`·`v2.13.0`이 같은 digest)로 고정했다. 이미지 내용은 바뀌지 않으며, 이 고정과 위 Request/Limit을 같은 재시작 창에서 반영한다. Harbor Trivy(2026-10-02, v0.62.1)는 Critical/High = 0/1·0/72·1/44로 HBR 0/0 기준 미달이라 예외·업그레이드는 #13에서 결정한다.
+  - **병합 ≠ 현장 반영 승인.** 이 세 이미지는 #13 HBR Lead 처분(이미지별 예외 승인 또는 0/0 대체 digest)이 확정되기 전에는 `kubectl apply`하지 않는다(STOP). 예외가 승인되지 않은 이미지는 0/0 대체 digest로 바꾸고 현장 imageID·Harbor digest·Trivy 결과를 다시 대조한 뒤 반영한다.
+  - 근거 원본: control01 `~/p1-mon-digest-pre-20261002T103421/digest-pre.txt`(`16d4d7a9…`), `~/p1-mon-digest-trivy-20261002T103638/`(artifact·vulnerability JSON, `summary.txt` `172af2ab…`), `~/p1-mon-pin-20261002T104441/`(`diff.txt` `6ba5d101…`·`pre-*.yaml`). 묶음 `~/p1-mon-evidence-20261002/control01-digest-pin-20261002.tgz`(`ba53008b…`)은 증적 PR로 편입한다.
 
 ## 2026-09-23 저장소 정합성 보완
 
