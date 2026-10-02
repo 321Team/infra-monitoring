@@ -26,7 +26,9 @@ spec:
         fsGroupChangePolicy: OnRootMismatch   # Storage 인계 결정(#17) 수용
       containers:
       - name: alertmanager
-        image: 10.1.93.54/fds/alertmanager:latest
+        # 2026-10-02: :latest(Always) → 현장 실행 digest로 고정(이미지 내용 불변). Harbor Trivy 2026-10-02 Critical 0 / High 1
+        # (grpc CVE-2026-84445) — HBR 0/0 기준 예외·업그레이드는 #13 결정(#17).
+        image: 10.1.93.54/fds/alertmanager@sha256:babefaac616bdb9fb5037a2b70a3c0ffa988c68e96443621dd7360e60781ab67
         args:
         - --config.file=/etc/alertmanager/alertmanager.yml
         - --storage.path=/alertmanager
