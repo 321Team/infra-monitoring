@@ -63,5 +63,5 @@
 - in-cluster Prometheus 중단(`scale 0`) → 5분 이내 `FDSMonitoringHeartbeatMissing` → 복구 후 해소. 중단·마지막 sample·첫 감지 시각을 실측한다.
 
 ## 알려진 제약
-- podman 컨테이너 자동 기동(재부팅 지속성)은 9/29 기동 확인 뒤 `podman generate systemd` 또는 Quadlet으로 따로 처리한다.
+- podman 컨테이너 자동 기동(재부팅 지속성)은 `monitor01/systemd/`의 사용자 유닛으로 처리한다. 유닛은 저장소 실행기를 그대로 불러 같은 검증을 거친다(linger 필요, 설치·되돌리기는 그 폴더 README). 실행 중 컨테이너가 죽었을 때의 자동 재시작은 범위 밖이다.
 - edge01 HTTPS Probe는 제외한다(edge01에 443 없음). AC는 "edge01 HTTPS **또는** API LB TCP Probe"라 LB로 충족을 시도한다.

@@ -1,0 +1,21 @@
+# monitor01 receiver·blackbox 재부팅 자동 기동(P1-MON-01 #17). server01_monitor 사용자 유닛(linger 필요).
+# 저장소 실행기를 그대로 부른다 — 이미지 ID 대조·--pull=never·고정 argv·localhost-only 확인이 매번 적용된다.
+# 재부팅 뒤 남은 Exited 컨테이너는 실행기가 STOP하므로 기동 전에 같은 실행기의 stop으로 이 두 이름만 회수한다.
+[Unit]
+Description=FDS monitor01 receiver and blackbox (rootless podman, P1-MON-01)
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+EnvironmentFile=%h/.config/fds-monitor01/images.env
+ExecStartPre=/usr/bin/python3 %h/fds-mon-tools/current/runtime_launch_local.py stop
+ExecStart=/usr/bin/python3 %h/fds-mon-tools/current/runtime_launch_local.py start --receiver-image ${RECEIVER_IMAGE} --receiver-config-digest ${RECEIVER_CONFIG_DIGEST} --blackbox-image ${BLACKBOX_IMAGE} --blackbox-config-digest ${BLACKBOX_CONFIG_DIGEST}
+ExecStop=/usr/bin/python3 %h/fds-mon-tools/current/runtime_launch_local.py stop
+Restart=on-failure
+RestartSec=30
+TimeoutStartSec=180
+
+[Install]
+WantedBy=default.target
