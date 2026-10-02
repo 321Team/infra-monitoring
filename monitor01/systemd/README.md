@@ -6,7 +6,7 @@ monitor01은 rootless podman(`server01_monitor`)으로 receiver·blackbox·nginx
 |---|---|---|
 | `images.env` | `~/.config/fds-monitor01/images.env`(0600) | 승인 Harbor digest와 예상 config digest 6줄(비밀 아님) |
 | `fds-monitor01-local.service` | `~/.config/systemd/user/` | `stop` → `start`(receiver·blackbox) |
-| `fds-monitor01-nginx.service` | `~/.config/systemd/user/` | receiver 뒤 `stop-nginx` → `start-nginx` |
+| `fds-monitor01-nginx.service` | `~/.config/systemd/user/` | receiver 뒤 `stop-nginx` → `start-nginx`. `Requires=`로 receiver 유닛이 실패하면 기동하지 않는다 |
 
 - 실행기는 `~/fds-mon-tools/current/runtime_launch_local.py`에서 부른다. `current`는 병합본 폴더(예: `~/fds-mon-tools/<merge sha>/`)를 가리키는 심볼릭 링크다. 실행기를 바꿀 때는 새 폴더에 받아 SHA를 대조한 뒤 링크만 바꾼다.
 - 재부팅 뒤에는 이전 컨테이너가 Exited로 남는다. 실행기 `start`는 같은 이름이 있으면 STOP하므로, 기동 전에 같은 실행기의 `stop`/`stop-nginx`로 **이 세 이름만** 회수한다. 설정·데이터·인증서·키는 호스트 경로라 영향이 없다. 이전 컨테이너 로그는 이때 사라진다.

@@ -302,6 +302,14 @@ class SystemdUnitTests(unittest.TestCase):
             else:
                 self.assertRegex(v, m.CONFIG_RE)
 
+    def test_nginx_unit_requires_local_unit(self):
+        # receiver 유닛이 실패하면 nginx도 기동하지 않아야 한다(Wants=는 실패를 전파하지 않는다).
+        text = Path(__file__).with_name("systemd").joinpath("fds-monitor01-nginx.service").read_text(encoding="utf-8")
+        unit = [l.strip() for l in text.split("[Service]")[0].splitlines()]
+        self.assertIn("Requires=fds-monitor01-local.service", unit)
+        self.assertIn("After=fds-monitor01-local.service", unit)
+        self.assertFalse(any(l.startswith(("Wants=", "BindsTo=")) for l in unit))
+
     def test_unit_exec_lines_parse_with_launcher(self):
         env = self.env()
         seen = []
