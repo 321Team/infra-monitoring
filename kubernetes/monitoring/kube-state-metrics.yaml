@@ -18,7 +18,9 @@ spec:
       serviceAccountName: kube-state-metrics-sa
       containers:
         - name: kube-state-metrics
-          image: 10.1.93.54/fds/kube-state-metrics:v2.13.0
+          # 2026-10-02: tag v2.13.0 → 현장 실행 digest로 고정(이미지 내용 불변). Harbor Trivy 2026-10-02 Critical 1 / High 44
+          # (Go 1.22.5 등) — HBR 0/0 기준 예외·업그레이드는 #13 결정(#17).
+          image: 10.1.93.54/fds/kube-state-metrics@sha256:8ca59a9893ecaebbea478099d99a9ffc9daa9f285a715adfa945246b111322a1
           args:
             # A2/S1 : UnexpectedPodInFdsNs 룰이 kube_pod_labels{label_app=...} 를 쓰려면
             # pod 라벨을 명시 allowlist 해야 한다 (v2.x 기본은 라벨 미노출).

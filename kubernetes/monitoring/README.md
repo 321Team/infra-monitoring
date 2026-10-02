@@ -12,6 +12,7 @@
 - 산식: #15 결정안 v2 §6(프로젝트 내부 기준) — CPU request = p95 × 1.5(50m 올림, 최소 100m), CPU limit = 최대 × 2(100m 올림), 메모리 request = 최대 × 1.2(64Mi 올림), 메모리 limit = request × 2. 현재 적용 중인 값보다 낮추지 않는다.
 - PVC 사용률: 세 PVC는 worker03 `/home` 한 파일시스템 위의 local PV라 `kubelet_volume_stats_*`가 파일시스템 전체(9/29 사용 4.3GiB / 166GiB)를 보여 준다. PVC별 사용량은 worker03 `du` 또는 `prometheus_tsdb_storage_blocks_bytes`(9/29 762MiB)로 본다.
 - 현장 반영: 병합은 적용이 아니다. 세 Deployment 모두 `:latest`·imagePullPolicy Always라 재시작하면 이미지를 다시 받는다. [G3 원칙](https://github.com/321Team/fds-project-baseline/issues/17#issuecomment-5885874627)대로 승인 digest 고정과 같은 재시작 창에서 반영하고, 그 전에 반영하려면 "현장 imageID = Harbor `latest` digest" 확인 조건으로 G3 확인을 먼저 받는다.
+- 2026-10-02: Alertmanager·Grafana·kube-state-metrics `image:`를 현장 실행 digest(`babefaac…`·`7a1ff544…`·`8ca59a98…`, 2026-10-02 10:34 KST 조회, Harbor 태그 `latest`·`latest`·`v2.13.0`이 같은 digest)로 고정했다. 이미지 내용은 바뀌지 않으며, 이 고정과 위 Request/Limit을 같은 재시작 창에서 반영한다. Harbor Trivy(2026-10-02, v0.62.1)는 Critical/High = 0/1·0/72·1/44로 HBR 0/0 기준 미달이라 예외·업그레이드는 #13에서 결정한다.
 
 ## 2026-09-23 저장소 정합성 보완
 
@@ -57,7 +58,7 @@ references를 정본 배포 입력으로 사용하지 않는다"고 규정한 �
 | 항목 | 이번 PR 처리 |
 |---|---|
 | fds namespace·업무 포트 | `monitoring-api`/`monitoring-node`로 이전, 앱 metrics 9091/9090(dns_sd_configs)로 전환 |
-| latest 이미지·emptyDir | PVC/SC/PV(worker03 static local PV, Storage 인계 결정 #17)로 전환. **Harbor 승인 digest는 미해결** — `image:` 필드는 여전히 `:latest` |
+| latest 이미지·emptyDir | PVC/SC/PV(worker03 static local PV, Storage 인계 결정 #17)로 전환. Harbor digest는 2026-10-02 현장 실행 digest로 고정(위 Request/Limit 절, Trivy 0/0 기준 미달은 #13 결정) |
 | kubelet insecure_skip_verify | `ca_file`(ServiceAccount 기본 CA)로 전환. **TLS 긍정/부정 시험 NOT RUN** — 이 클러스터의 실제 kubelet 인증서 체인 미검증 |
 | monitoring-node PSA/privileged 금지 | `namespaces.yaml`: monitoring-api는 `restricted`, monitoring-node는 D33 결정대로 `enforce=privileged`+`audit/warn=restricted`. node-exporter 컨테이너는 `privileged:false`+`seccompProfile` 명시로 실제 권한 행사는 방어(GWONUK 리뷰 B4 반영, 최초 커밋의 "라벨 생략" 판단은 정정됨) |
 | Grafana default password | `secretKeyRef`로 전환, Secret 자체는 이 리포에 없음(직접 생성 필요, grafana.yaml 주석의 명령 참조) |
