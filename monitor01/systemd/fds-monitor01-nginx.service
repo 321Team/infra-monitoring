@@ -1,0 +1,22 @@
+# monitor01 nginx(IF-06B 수신) 재부팅 자동 기동(P1-MON-01 #17). server01_monitor 사용자 유닛(linger 필요).
+# receiver 뒤에 기동하고, receiver 유닛이 실패하면 기동하지 않는다(Requires — upstream 없는 부분 기동 방지). 10.250.10.30이 아직 없으면 start-nginx가 STOP하고 Restart=on-failure로 30초 뒤 다시 시도한다.
+[Unit]
+Description=FDS monitor01 nginx remote-write proxy (rootless podman, P1-MON-01)
+After=fds-monitor01-local.service
+Requires=fds-monitor01-local.service
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+EnvironmentFile=%h/.config/fds-monitor01/images.env
+ExecStartPre=/usr/bin/python3 %h/fds-mon-tools/current/runtime_launch_local.py stop-nginx
+ExecStart=/usr/bin/python3 %h/fds-mon-tools/current/runtime_launch_local.py start-nginx --image ${NGINX_IMAGE} --config-digest ${NGINX_CONFIG_DIGEST}
+ExecStop=/usr/bin/python3 %h/fds-mon-tools/current/runtime_launch_local.py stop-nginx
+Restart=on-failure
+RestartSec=30
+TimeoutStartSec=120
+
+[Install]
+WantedBy=default.target

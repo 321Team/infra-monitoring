@@ -277,5 +277,64 @@ class NginxTests(unittest.TestCase):
         sl.assert_not_called()
 
 
+class SystemdUnitTests(unittest.TestCase):
+    """systemd 유닛이 부르는 실행기 인수가 실제 argparse·digest 형식과 맞는지 확인한다."""
+
+    def env(self):
+        out = {}
+        for line in Path(__file__).with_name("systemd").joinpath("images.env").read_text(encoding="utf-8").splitlines():
+            if line and not line.startswith("#"):
+                k, v = line.split("=", 1)
+                out[k] = v
+        return out
+
+    def exec_lines(self, unit):
+        text = Path(__file__).with_name("systemd").joinpath(unit).read_text(encoding="utf-8")
+        return [l.split("=", 1) for l in text.splitlines() if l.startswith(("ExecStartPre=", "ExecStart=", "ExecStop="))]
+
+    def test_images_env_values_are_valid(self):
+        env = self.env()
+        self.assertEqual(sorted(env), sorted(["RECEIVER_IMAGE", "RECEIVER_CONFIG_DIGEST", "BLACKBOX_IMAGE",
+                                              "BLACKBOX_CONFIG_DIGEST", "NGINX_IMAGE", "NGINX_CONFIG_DIGEST"]))
+        for k, v in env.items():
+            if k.endswith("_IMAGE"):
+                m.require_digest(v, k)
+            else:
+                self.assertRegex(v, m.CONFIG_RE)
+
+    def test_nginx_unit_requires_local_unit(self):
+        # receiver 유닛이 실패하면 nginx도 기동하지 않아야 한다(Wants=는 실패를 전파하지 않는다).
+        text = Path(__file__).with_name("systemd").joinpath("fds-monitor01-nginx.service").read_text(encoding="utf-8")
+        unit = [l.strip() for l in text.split("[Service]")[0].splitlines()]
+        self.assertIn("Requires=fds-monitor01-local.service", unit)
+        self.assertIn("After=fds-monitor01-local.service", unit)
+        self.assertFalse(any(l.startswith(("Wants=", "BindsTo=")) for l in unit))
+
+    def test_unit_exec_lines_parse_with_launcher(self):
+        env = self.env()
+        seen = []
+        for unit in ("fds-monitor01-local.service", "fds-monitor01-nginx.service"):
+            for key, cmd in self.exec_lines(unit):
+                for k, v in env.items():
+                    cmd = cmd.replace("${" + k + "}", v)
+                self.assertNotIn("${", cmd)
+                argv = cmd.split()
+                self.assertEqual(argv[:2], ["/usr/bin/python3", "%h/fds-mon-tools/current/runtime_launch_local.py"])
+                called = {}
+                stubs = {n: (lambda a, n=n: called.setdefault("func", (n, a))) for n in
+                         ("start", "stop", "start_nginx", "stop_nginx", "check_nginx", "verify_image")}
+                with mock.patch.multiple(m, **stubs), mock.patch.object(sys, "argv", ["x"] + argv[2:]):
+                    self.assertEqual(m.main(), 0)
+                seen.append((unit, key, called["func"][0]))
+        self.assertEqual(seen, [
+            ("fds-monitor01-local.service", "ExecStartPre", "stop"),
+            ("fds-monitor01-local.service", "ExecStart", "start"),
+            ("fds-monitor01-local.service", "ExecStop", "stop"),
+            ("fds-monitor01-nginx.service", "ExecStartPre", "stop_nginx"),
+            ("fds-monitor01-nginx.service", "ExecStart", "start_nginx"),
+            ("fds-monitor01-nginx.service", "ExecStop", "stop_nginx"),
+        ])
+
+
 if __name__ == "__main__":
     unittest.main()
