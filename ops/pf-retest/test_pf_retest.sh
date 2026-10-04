@@ -4,6 +4,7 @@
 # Usage: bash ops/pf-retest/test_pf_retest.sh
 HERE=$(cd "$(dirname "$0")" && pwd)
 ORIG_PATH=$PATH
+REAL_CAT=$(command -v cat)
 T=$(mktemp -d)
 BG=""
 finish() { for p in $BG; do kill -KILL "$p" 2>/dev/null; done; rm -rf "$T"; }
@@ -60,11 +61,19 @@ case "$a" in
     if [ -n "$MOCK_DRYRUN_FAIL" ]; then echo "error: admission webhook denied"; exit 1; fi
     echo "serviceaccount/p1-mon-pf-verify created (server dry run)"; exit 0 ;;
   *"create -f"*)
-    echo "uid-sa" > "$S/obj_serviceaccount"; echo "serviceaccount/p1-mon-pf-verify created"
-    if [ -n "$MOCK_CREATE_PARTIAL" ]; then echo 'Error from server (Forbidden): roles.rbac.authorization.k8s.io is forbidden'; exit 1; fi
-    echo "uid-role" > "$S/obj_role"; echo "role.rbac.authorization.k8s.io/p1-mon-pf-verify created"
-    echo "uid-rb" > "$S/obj_rolebinding"; echo "rolebinding.rbac.authorization.k8s.io/p1-mon-pf-verify created"
-    exit 0 ;;
+    case "$a" in
+      *08-sa.yaml*) k=serviceaccount; u=uid-sa ;;
+      *08-rolebinding.yaml*) k=rolebinding; u=uid-rb ;;
+      *08-role.yaml*) k=role; u=uid-role ;;
+      *) echo "mock: unexpected create: $a" >&2; exit 98 ;;
+    esac
+    if [ -n "$MOCK_CREATE_PARTIAL" ] && [ "$k" != serviceaccount ]; then echo "Error from server (Forbidden): $k is forbidden" >&2; exit 1; fi
+    echo "$u" > "$S/obj_$k"
+    # Created on the server but the response never reached the client.
+    if [ "$MOCK_CREATE_LOST" = "$k" ]; then echo "error: the server was unable to return a response in the time allotted" >&2; exit 1; fi
+    # Same-name object replaced right after our create returned.
+    if [ "$MOCK_REPLACE_AFTER" = "$k" ]; then echo uid-replacement > "$S/obj_$k"; fi
+    printf '%s' "$u"; exit 0 ;;
   *"create token"*)
     if [ -n "$MOCK_TOKEN_FAIL" ]; then echo "error: token request failed" >&2; exit 1; fi
     if [ -n "$MOCK_JWT_BAD" ]; then echo "not-a-jwt"; exit 0; fi
@@ -140,6 +149,7 @@ exit 1
 MOCK
   cat > "$B/ss" <<'MOCK'
 #!/usr/bin/env bash
+if [ -n "$MOCK_SS_FAIL" ]; then echo "Cannot open netlink socket: Operation not permitted" >&2; exit 1; fi
 [ -f "$MOCK_STATE/listen13000" ] && echo "LISTEN 0 4096 127.0.0.1:13000 0.0.0.0:*"
 exit 0
 MOCK
@@ -151,6 +161,8 @@ MOCK
 #!/usr/bin/env bash
 printf 'root:x:0:0::/root:/bin/bash\nserver01_cicd-runner:x:1000:1000::/home/server01_cicd-runner:/bin/bash\n'
 MOCK
+  # cat fails mid-write only when MOCK_CAT_FAIL is set (kubeconfig placement write error).
+  printf '#!/usr/bin/env bash\nif [ -n "$MOCK_CAT_FAIL" ]; then head -c 10; exit 1; fi\nexec %s "$@"\n' "$REAL_CAT" > "$B/cat"
   # NTFS (Git Bash on Windows) cannot show POSIX 0600; emulate stat only there. Linux CI uses real stat.
   case "$(uname -s)" in
     MINGW*|MSYS*|CYGWIN*) printf '#!/usr/bin/env bash
@@ -205,7 +217,7 @@ check "S2 gate PASS with NOT_TRANSFERRED/NOT_INSTALLED" "[ \"\$(stv \"$RR\" REST
 
 echo "# S3 checksum mismatch -> binary never executed"
 new_scenario s3
-rn_ pre "$RR" > /dev/null
+rn_ pre "$RR" > /dev/null; rn_ stop "$RR" > /dev/null
 ( export MOCK_SHA_BAD=1; rn_ install "$RR" > /dev/null ); rc=$?
 check "S3 install rc non-zero" "[ $rc -ne 0 ]"
 check "S3 kubectl not executed" "[ ! -f \"$S/state/kubectl_executed\" ]"
@@ -247,6 +259,7 @@ prep_runner() { # objects created, kubeconfig placed
   cp_ pre "$CPR" > /dev/null; rn_ pre "$RR" > /dev/null; rn_ stop "$RR" > /dev/null; rn_ install "$RR" > /dev/null
   cp_ create "$CPR" > /dev/null; out=$(cp_ token "$CPR")
   exp=$(echo "$out" | sed -n 's/^TOKEN_EXP=//p'); echo "$out" | kc_from | rn_ place "$RR" "$exp" > /dev/null
+  rn_ verify "$RR" grafana-abc prometheus-abc > /dev/null
 }
 
 echo "# S7 port 13000 already in use -> STOP without killing it"
@@ -308,6 +321,104 @@ echo "# S14 over-broad RBAC (list pods allowed) -> AUTHZ FAIL"
 new_scenario s14; prep_runner
 ( export MOCK_CANI_WIDE=1; rn_ verify "$RR" grafana-abc prometheus-abc > /dev/null ); rc=$?
 check "S14 verify rc non-zero, DENY_POD_LIST=FAIL" "[ $rc -ne 0 ] && [ \"\$(stv \"$RR\" DENY_POD_LIST)\" = FAIL ]"
+
+echo "# S15 create race: same name replaced after our create -> not adopted, no token, foreign object kept, BLOCKED"
+new_scenario s15
+cp_ pre "$CPR" > /dev/null; rn_ pre "$RR" > /dev/null; rn_ stop "$RR" > /dev/null
+( export MOCK_REPLACE_AFTER=serviceaccount; cp_ create "$CPR" > /dev/null )
+check "S15 ownership is the create-response UID" "grep -qx 'UID_serviceaccount=uid-sa' \"$CPR/created.env\" && ! grep -q uid-replacement \"$CPR/created.env\""
+cp_ token "$CPR" > "$S/token.out"; rc=$?
+check "S15 token refused (ownership mismatch), no kubeconfig" "[ $rc -ne 0 ] && [ \"\$(stv \"$CPR\" TOKEN)\" = STOP_OWNERSHIP_MISMATCH ] && [ \"\$(grep -c 'token:' \"$S/token.out\")\" = 0 ] && [ -z \"\$(stv \"$CPR\" TOKEN_ISSUED)\" ]"
+cp_ delete "$CPR" > /dev/null
+check "S15 foreign SA not deleted, delete FAIL" "[ \"\$(cat \"$S/state/obj_serviceaccount\")\" = uid-replacement ] && [ \"\$(stv \"$CPR\" TEMP_OBJECTS_REMOVED)\" = FAIL ]"
+check "S15 owned role/rolebinding removed" "[ ! -f \"$S/state/obj_role\" ] && [ ! -f \"$S/state/obj_rolebinding\" ]"
+rn_ cleanup "$RR" "$(stv "$CPR" TEMP_OBJECTS_REMOVED)" > /dev/null; rn_ restore "$RR" > /dev/null; rc=$?
+check "S15 gate BLOCKED, runner offline" "[ \"\$(stv \"$RR\" RESTORE_GATE)\" = BLOCKED ] && [ $rc -ne 0 ] && [ ! -f \"$S/state/runner_active\" ]"
+
+echo "# S16 create response lost -> ownership kept as recorded, rerun refused, unowned object not deleted"
+new_scenario s16
+cp_ pre "$CPR" > /dev/null
+( export MOCK_CREATE_LOST=role; cp_ create "$CPR" > /dev/null ); rc=$?
+check "S16 create rc non-zero, FAIL_AT_role, SA ownership kept" "[ $rc -ne 0 ] && [ \"\$(stv \"$CPR\" TEMP_RBAC_CREATED)\" = FAIL_AT_role ] && grep -qx 'UID_serviceaccount=uid-sa' \"$CPR/created.env\" && ! grep -q UID_role \"$CPR/created.env\""
+cp_ create "$CPR" > /dev/null; rc=$?
+check "S16 second create refused, created.env preserved" "[ $rc -ne 0 ] && [ \"\$(stv \"$CPR\" CREATE)\" = STOP_ALREADY_RAN ] && grep -qx 'UID_serviceaccount=uid-sa' \"$CPR/created.env\""
+cp_ token "$CPR" > "$S/token.out"; rc=$?
+check "S16 token refused" "[ $rc -ne 0 ] && [ \"\$(grep -c 'token:' \"$S/token.out\")\" = 0 ]"
+cp_ delete "$CPR" > /dev/null
+check "S16 owned SA removed, unowned role kept, delete FAIL" "[ ! -f \"$S/state/obj_serviceaccount\" ] && [ -f \"$S/state/obj_role\" ] && [ \"\$(stv \"$CPR\" TEMP_OBJECTS_REMOVED)\" = FAIL ]"
+
+echo "# S17 ss failure at pre -> STOP (not counted as 0)"
+new_scenario s17
+( export MOCK_SS_FAIL=1; rn_ pre "$RR" > /dev/null ); rc=$?
+check "S17 PRE=STOP_LISTENER_UNKNOWN" "[ $rc -ne 0 ] && [ \"\$(stv \"$RR\" PRE)\" = STOP_LISTENER_UNKNOWN ] && grep -q 'rc=1' \"$RR/ss.log\""
+
+echo "# S18 ss failure at cleanup -> FAIL_LISTENER_UNKNOWN, gate BLOCKED"
+new_scenario s18; prep_runner
+rn_ pftest "$RR" grafana-abc > /dev/null
+cp_ delete "$CPR" > /dev/null
+( export MOCK_SS_FAIL=1; rn_ cleanup "$RR" "$(stv "$CPR" TEMP_OBJECTS_REMOVED)" > /dev/null )
+check "S18 FAIL_LISTENER_UNKNOWN and BLOCKED" "[ \"\$(stv \"$RR\" PF_PROCESS_STOPPED)\" = FAIL_LISTENER_UNKNOWN ] && [ \"\$(stv \"$RR\" RESTORE_GATE)\" = BLOCKED ]"
+rn_ restore "$RR" > /dev/null; rc=$?
+check "S18 restore refused" "[ $rc -ne 0 ] && [ ! -f \"$S/state/runner_active\" ]"
+
+echo "# S19 no pf.pid but port 13000 held by another process -> not killed, BLOCKED, restore refused"
+new_scenario s19
+rn_ pre "$RR" > /dev/null; rn_ stop "$RR" > /dev/null
+touch "$S/state/listen13000"
+rn_ cleanup "$RR" NOT_CREATED > /dev/null
+check "S19 FAIL_FOREIGN_LISTENER, listener kept" "[ \"\$(stv \"$RR\" PF_PROCESS_STOPPED)\" = FAIL_FOREIGN_LISTENER ] && [ -f \"$S/state/listen13000\" ]"
+rn_ restore "$RR" > /dev/null; rc=$?
+check "S19 gate BLOCKED, restore refused, runner offline" "[ \"\$(stv \"$RR\" RESTORE_GATE)\" = BLOCKED ] && [ $rc -ne 0 ] && [ ! -f \"$S/state/runner_active\" ]"
+
+echo "# S20 runner stop failed -> install/place refused, no kubeconfig written"
+new_scenario s20
+rn_ pre "$RR" > /dev/null
+( export MOCK_STOP_FAIL=1; rn_ stop "$RR" > /dev/null )
+rn_ install "$RR" > /dev/null; rc1=$?
+echo 'token: x' | rn_ place "$RR" 9999999999 > /dev/null; rc2=$?
+check "S20 install and place refused" "[ $rc1 -ne 0 ] && [ $rc2 -ne 0 ] && [ \"\$(stv \"$RR\" PLACE)\" = STOP_RUNNER_NOT_STOPPED ] && [ \"\$(stv \"$RR\" INSTALL)\" = STOP_RUNNER_NOT_STOPPED ]"
+check "S20 no kubeconfig file, no PLACE_STARTED" "[ \"\$(ls \"$S/shm\" | grep -c .)\" = 0 ] && [ -z \"\$(stv \"$RR\" PLACE_STARTED)\" ]"
+
+echo "# S21 cleanup closes the run: later place refused; stale gate cannot restart over residue"
+new_scenario s21
+rn_ pre "$RR" > /dev/null; rn_ stop "$RR" > /dev/null
+rn_ cleanup "$RR" NOT_CREATED > /dev/null
+echo 'token: x' | rn_ place "$RR" 9999999999 > /dev/null; rc=$?
+check "S21 place after cleanup refused, no file" "[ $rc -ne 0 ] && [ \"\$(stv \"$RR\" PLACE)\" = STOP_CLEANUP_ALREADY_STARTED ] && [ \"\$(ls \"$S/shm\" | grep -c .)\" = 0 ]"
+echo 'token: x' > "$S/shm/p1-mon-pf-verify-run-1.kubeconfig"
+rn_ restore "$RR" > /dev/null; rc=$?
+check "S21 residual kubeconfig -> restore refused" "[ $rc -ne 0 ] && stv \"$RR\" RUNNER_RESTORED | grep -q '^REFUSED_RESIDUAL_kubeconfig' && [ ! -f \"$S/state/runner_active\" ]"
+rm -f "$S/shm/p1-mon-pf-verify-run-1.kubeconfig"
+rn_ restore "$RR" > /dev/null; rc=$?
+check "S21 clean -> restore PASS" "[ $rc -eq 0 ] && [ \"\$(stv \"$RR\" RUNNER_RESTORED_LOCAL)\" = PASS ]"
+
+echo "# S22 place interrupted (state injection) -> PLACE_INTERRUPTED, never NOT_TRANSFERRED, BLOCKED"
+for v in file-partial file-complete no-file; do
+  new_scenario "s22-$v"
+  rn_ pre "$RR" > /dev/null; rn_ stop "$RR" > /dev/null
+  printf 'TOKEN_EXP=9999999999\nPLACE_STARTED=injected\n' >> "$RR/status.txt"
+  case "$v" in
+    file-partial) printf 'apiVersion: v1\nkind: Con' > "$S/shm/p1-mon-pf-verify-run-1.kubeconfig" ;;
+    file-complete) printf 'users:\n- user: {token: dummy}\n' > "$S/shm/p1-mon-pf-verify-run-1.kubeconfig" ;;
+  esac
+  rn_ cleanup "$RR" NOT_CREATED > /dev/null
+  check "S22 $v PLACE_INTERRUPTED, file removed, BLOCKED" "[ \"\$(stv \"$RR\" OLD_TOKEN_AUTH_AFTER_SA_DELETE)\" = PLACE_INTERRUPTED ] && [ \"\$(stv \"$RR\" KUBECONFIG_REMOVED)\" = PASS ] && [ \"\$(ls \"$S/shm\" | grep -c .)\" = 0 ] && [ \"\$(stv \"$RR\" RESTORE_GATE)\" = BLOCKED ]"
+done
+
+echo "# S23 kubeconfig write RC failure -> partial file removed, explicit failure recorded"
+new_scenario s23
+rn_ pre "$RR" > /dev/null; rn_ stop "$RR" > /dev/null
+( export MOCK_CAT_FAIL=1; printf 'apiVersion: v1\nusers:\n- user: {token: dummy}\n' | rn_ place "$RR" 9999999999 > /dev/null ); rc=$?
+check "S23 place rc non-zero, FAIL_WRITE_REMOVED, file gone" "[ $rc -ne 0 ] && [ \"\$(stv \"$RR\" KUBECONFIG_PLACED)\" = FAIL_WRITE_REMOVED ] && [ \"\$(ls \"$S/shm\" | grep -c .)\" = 0 ]"
+rn_ verify "$RR" grafana-abc prometheus-abc > /dev/null; rc=$?
+check "S23 verify refused after failed place" "[ $rc -ne 0 ] && [ \"\$(stv \"$RR\" AUTHZ)\" = STOP_NOT_PLACED ]"
+rn_ cleanup "$RR" NOT_CREATED > /dev/null
+check "S23 PLACE_FAILED_FILE_REMOVED (not NOT_TRANSFERRED)" "[ \"\$(stv \"$RR\" OLD_TOKEN_AUTH_AFTER_SA_DELETE)\" = PLACE_FAILED_FILE_REMOVED ] && [ \"\$(stv \"$RR\" KUBECONFIG_REMOVED)\" = PASS ]"
+
+echo "# S24 relative RUN path is normalized to an absolute path"
+new_scenario s24
+( env_common; cd "$S" && bash "$HERE/pf_cp.sh" pre cp-rel > /dev/null && bash "$HERE/pf_cp.sh" create cp-rel > /dev/null )
+check "S24 status written inside the run dir" "[ \"\$(stv \"$S/cp-rel\" TEMP_RBAC_CREATED)\" = PASS ] && [ ! -e \"$S/cp-rel/cp-rel\" ]"
 
 echo
 echo "RESULT pass=$pass fail=$fail"
