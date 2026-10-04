@@ -30,6 +30,13 @@ jobs:
           python3 tools/check_source.py
       - name: Monitor01 candidate validation tests (no deployment)
         run: python3 -m unittest discover -s monitor01 -p 'test_*.py' -v
+      - name: Port-forward retest tool MOCK tests (no cluster, no network)
+        shell: bash
+        run: |
+          bash -n ops/pf-retest/pf_cp.sh
+          bash -n ops/pf-retest/pf_runner.sh
+          bash -n ops/pf-retest/pf_gh.sh
+          bash ops/pf-retest/test_pf_retest.sh
       - name: Check historical demo syntax without execution
         shell: bash
         run: |
