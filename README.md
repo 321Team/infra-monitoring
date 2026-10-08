@@ -12,6 +12,7 @@ Phase 1~2 monitoring/observability source, Kubernetes 내부 관측 Stack과 mon
 | `references/e-k3s/scripts/demo/` | S7a/S7b/S8 시연 코드. 일부는 scale/apply를 수행하므로 자동 실행 금지 |
 | `references/e-k3s/docs/runbooks/` | 당시 시연 절차, 현재 Runtime 승인 아님 |
 | `docs/CANONICAL_GAPS.md` | 정본과의 차이 및 후속 인계 |
+| `docs/GRAFANA_ACCESS_LEDGER_20261009.md` | Grafana 승인/비상 경로의 과거 증적·현재 조회·미확인 운영 정보 구분 |
 | `docs/POLICY.md`, `docs/MIGRATION.md` | 운영 정책, 출처 및 전환 조건 |
 
 P1-MON-01 Lead는 이재환, Support는 이권욱이다. 이하영은 PSA/RBAC/NetworkPolicy/Host Firewall 및 exporter 예외를 검토한다. 코드 소유와 보안 정책 승인 책임을 혼동하지 않는다.
