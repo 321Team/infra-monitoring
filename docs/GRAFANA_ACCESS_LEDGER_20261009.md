@@ -1,6 +1,6 @@
 # Grafana 관리·비상 접근 기록 — 2026-10-09
 
-작성 지원 이권욱 / MON Lead 이재환 / SEC Review Owner 이하영. 현재 조회 근거는 [evidence#175](https://github.com/321Team/fds-project-evidence/pull/175) HEAD `8bdba54d1ed199e1b78e4ecf64ab9ee53dabe3a3`의 00:26 KST projection이다. 이 증적은 [이재환 독립 승인](https://github.com/321Team/fds-project-evidence/pull/175#pullrequestreview-5459247641)을 받았으며 10/9 01:02 KST 확인 기준 병합 전이다. 과거 승인 단말 회차는 병합된 [evidence#130](https://github.com/321Team/fds-project-evidence/pull/130)을 참조한다.
+작성 지원 이권욱 / MON Lead 이재환 / SEC Review Owner 이하영. 현재 조회 근거는 [evidence#175](https://github.com/321Team/fds-project-evidence/pull/175) HEAD `8bdba54d1ed199e1b78e4ecf64ab9ee53dabe3a3`의 00:26 KST projection이다. 이 증적은 이재환의 통합 HEAD 재검토 후 10/9 12:20 KST에 [merge b81abe11](https://github.com/321Team/fds-project-evidence/commit/b81abe118c02298aa5b817062f92241b9e0006e0)로 편입됐다. 수집 시점의 관측과 병합 시점은 구분한다. 과거 승인 단말 회차는 병합된 [evidence#130](https://github.com/321Team/fds-project-evidence/pull/130)을 참조한다.
 
 **현재 판정: 승인 관리 경로의 과거 성공은 있지만, 승인 단말만 접근할 수 있다는 배타성은 미입증이다.** 아래 표는 조회 사실과 추가로 받아야 할 자료를 구분한 인계 기록이며, 관리 권한 신설·제거, 새 시험 GO, 예외 승인 또는 #17 AC 판정이 아니다. 철회된 #17/#30 예외 제안의 기한·처분을 재사용하지 않는다.
 
@@ -12,7 +12,7 @@
 | 정상 Grafana Service | 현재 monitoring-api/grafana는 ClusterIP `10.111.143.44:3000`, Ingress0, NodePort/LoadBalancer/externalIPs 없음. worker03의 Grafana Pod hostNetwork/hostPort 없음 | Kubernetes 조회와 UID/resourceVersion·수집 시각이 #175에 있음. namespace default-deny가 ingress를 선택하며 수집 NetworkPolicy에 Grafana ingress allow 없음 | CNI·호스트·API tunnel·관리 예외를 포함한 전체 경로 차단 입증은 아님. 현재 외부 음성 시험을 새로 수행하지 않음 |
 | control01의 관리 kubeconfig 보관 | `/etc/kubernetes/admin.conf`, `/etc/kubernetes/super-admin.conf` 존재, root:root0600. 이번 조회자는 기존 svc_ansible→sudo 읽기 전용 접근 | stat 메타데이터만 수집. 파일 내용·개인키·토큰은 읽거나 게시하지 않음 | 인증서 주체·현재 유효성, 인적 보유자, 원격/콘솔 사용조건, 다른 사본 위치, sudo·API 감사 원본 및 회수 절차 **미확인**. 파일 존재가 특정 사람의 사용 승인이나 인증 성공을 뜻하지 않음 |
 | 광범위 관리자 API 권한 | live ClusterRoleBinding `cluster-admin`→Group `system:masters`, `kubeadm:cluster-admins`→동명 Group. 둘 다 cluster-admin wildcard 권한 | 정적 Role/Binding 원문 projection 보존. 새로운 권한 생성 없음 | 그룹에 속한 인증 주체·인적 소유자·현재 유효 credential/단말 목록 미확인. RBAC binding만으로 승인 단말 제한을 입증할 수 없음 |
-| Grafana Pod exec → 앱 관리자 계정 | [MON Lead의 PR41 리뷰](https://github.com/321Team/infra-monitoring/pull/41#pullrequestreview-5459325730)에서 9/26·9/30에 `kubectl exec` 후 Pod 환경의 Grafana admin 계정으로 API를 호출한 이력을 보고함. 현재 cluster-admin wildcard는 `pods/exec`도 포함하는 정적 권한 근거 | 이 행은 담당자의 과거 실행 보고와 현재 권한 메타데이터를 연결함. 해당 과거 exec/API 감사 원본은 미확인. 10/9 09:40 KST [증적185](https://github.com/321Team/fds-project-evidence/pull/185) HEAD32eb6d2에서 Deployment/Pod의 관리자 Secret 참조 일치를 수집(아래 §4) | 실제 API principal·운영자·단말, 참조 위치는 §4로 보완. 인적 보관자·회전/회수 이력, exec와 앱 API 감사 연결은 이재환이 보완. PF만의 접근 경로로 합치지 않으며 현재 유효 credential·접속 성공을 추정하지 않음 |
+| Grafana Pod exec → 앱 관리자 계정 | [MON Lead의 PR41 리뷰](https://github.com/321Team/infra-monitoring/pull/41#pullrequestreview-5459325730)에서 9/26·9/30에 `kubectl exec` 후 Pod 환경의 Grafana admin 계정으로 API를 호출한 이력을 보고함. 현재 cluster-admin wildcard는 `pods/exec`도 포함하는 정적 권한 근거 | 이 행은 담당자의 과거 실행 보고와 현재 권한 메타데이터를 연결함. 해당 과거 exec/API 감사 원본은 미확인. 10/9 09:40 KST [증적185](https://github.com/321Team/fds-project-evidence/pull/185) HEAD32eb6d2에서 Deployment/Pod의 관리자 Secret 참조 일치를 수집(아래 §4) | 참조 위치는 §4로 보완. 실제 API principal·운영자·단말, 인적 보관자·회전/회수 이력, exec와 앱 API 감사 연결은 이재환이 보완. PF만의 접근 경로로 합치지 않으며 현재 유효 credential·접속 성공을 추정하지 않음 |
 | 시스템 controller GET 후보 | generic-garbage-collector·namespace-controller의 get + wildcard resource 규칙 | #175 분석은 CREATE_OR_WILDCARD와 GET_ONLY_CANDIDATE를 구분 | 실제 PF 연결 방식/인가 결과 **미시험**. 실제 사용 가능한 관리 경로라고 단정하지 않음 |
 | 다른 control-plane/관리 PC/비상 콘솔 | 이번 수집 범위 밖 | 과거 기록과 최신 실물 메타데이터의 연결 필요 | 사본·principal·접근 Source·조건·감사·회수 전부 **미확인**. 존재/부재를 추정하지 않음 |
 
@@ -49,7 +49,7 @@
 - `GF_SECURITY_ADMIN_PASSWORD` → 같은 Secret key `admin-password`
 - 위치: Deployment `.spec.template.spec.containers[name=grafana].env[].valueFrom.secretKeyRef` / Pod `.spec.containers[name=grafana].env[].valueFrom.secretKeyRef`
 
-Secret 객체·값·그 해시·실제 앱 암호 유효성·인적 보유자·회전 이력은 미조회/미검증이다. 현재 참조를 과거 exec 회차의 설정으로 소급하지 않는다. API 원문은 메모리에서 투영 후 폐기했고 수신 projection 원본·해시·분석을 보존했다. 새 PF/exec/권한 변경·로그인 시험은 없다. 증적 독립 리뷰는 작업창 종료 후 회수한다.
+Secret 객체·값·그 해시·실제 앱 암호 유효성·인적 보유자·회전 이력은 미조회/미검증이다. 현재 참조를 과거 exec 회차의 설정으로 소급하지 않는다. API 원문은 메모리에서 투영 후 폐기했고 수신 projection 원본·해시·분석을 보존했다. 새 PF/exec/권한 변경·로그인 시험은 없다. 증적185는 통합 HEAD `20041ecd`를 거쳐 10/9 13:26 KST에 [merge f2c2a370](https://github.com/321Team/fds-project-evidence/commit/f2c2a37050aaacdddbcdcfbc73c661dbfb4cc671)로 편입됐다. 편입은 위 참조 증적의 보존이며 미확인 주체·보관·회전·접근 배타성의 인수나 새 Runtime GO가 아니다.
 
 다음 [최소 시험 준비안](MON_MINIMUM_TEST_PREPARATION_20261009.md)은 기존 PF/격리 Probe 성공을 재사용하고, 실제 경로/HTTP 전이의 부족 증거와 입력·중단·복구 조건을 나눈다. Runtime GO 또는 모든6종 장애 주입 요구가 아니다.
 
